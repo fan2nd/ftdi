@@ -1,0 +1,13 @@
+[package]
+name = "ftdi"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bitfield-struct = "0.8.0"
+embedded-hal = "1.0.0"
+futures-lite = "2.3.0"
+nusb = "0.1.10"
+thiserror = "1.0.63"
+[dev-dependencies]
+rand = "0.8.5"
