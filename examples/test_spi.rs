@@ -22,10 +22,10 @@ fn main() {
 
     // verify
     for index in 0..DATA_COUNT {
-        if write_buffer[index] != write_buffer[index] {
+        if write_buffer[index] != read_buffer[index] {
             println!(
                 "index-{}: write{} != read:{}",
-                index, write_buffer[index], write_buffer[index]
+                index, write_buffer[index], read_buffer[index]
             );
             break;
         }
