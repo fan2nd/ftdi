@@ -13,4 +13,6 @@ pub enum FtdiError {
     CommandError(Command),
     #[error("Usb Transfer:{0} failed")]
     TransferError(nusb::transfer::TransferError),
+    #[error("timeout")]
+    Timeout,
 }

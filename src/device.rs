@@ -19,7 +19,6 @@ pub struct ChipInfo {
     chip_type: ChipType,
     vid: u16,
     pid: u16,
-    fifo_size: usize,
 }
 
 pub struct FtdiDevice {
@@ -32,13 +31,11 @@ impl FtdiDevice {
             chip_type: ChipType::FT232H,
             vid: 0x0403,
             pid: 0x6014,
-            fifo_size: 1024,
         },
         ChipInfo {
             chip_type: ChipType::FT2232H,
             vid: 0x0403,
             pid: 0x6010,
-            fifo_size: 4096,
         },
     ];
 
@@ -60,7 +57,7 @@ impl FtdiDevice {
             .collect()
     }
     pub fn open(
-        self,
+        &self,
         interface: FtdiInterfaceEnum,
         bitmode: BitMode,
     ) -> Result<FtdiInterface, FtdiError> {
@@ -71,12 +68,6 @@ impl FtdiDevice {
         let usb_interface = device
             .detach_and_claim_interface(interface.interface_number())
             .map_err(|_| FtdiError::InterfaceOpenFailed)?;
-        FtdiInterface::new(
-            usb_interface,
-            interface,
-            bitmode,
-            512,
-            self.chip_info.fifo_size,
-        )
+        FtdiInterface::new(usb_interface, interface, bitmode, 512)
     }
 }

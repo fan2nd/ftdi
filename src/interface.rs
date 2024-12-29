@@ -3,12 +3,12 @@ use crate::{
     error::FtdiError,
     request::{BitMode, Request, RequestReset},
 };
-use futures_lite::future::block_on;
+use futures::{executor::block_on, future::join};
 use nusb::{
     transfer::{Control, ControlType, Recipient, RequestBuffer},
     Interface,
 };
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Copy)]
 pub enum FtdiInterfaceEnum {
@@ -33,14 +33,13 @@ impl FtdiInterfaceEnum {
 }
 
 pub struct FtdiInterface {
-    interface: Interface,
+    pub interface: Interface,
     index: FtdiInterfaceEnum,
     pub bitmode: BitMode,
     max_packet_size: usize,
-    fifo_size: usize,
 
-    tx_buffer: Vec<u8>,
-    response_info: Vec<usize>,
+    pub async_tx_buffer: Vec<u8>,
+    pub async_response_len: usize,
 }
 
 impl FtdiInterface {
@@ -49,16 +48,15 @@ impl FtdiInterface {
         index: FtdiInterfaceEnum,
         bitmode: BitMode,
         max_packet_size: usize,
-        fifo_size: usize,
     ) -> Result<FtdiInterface, FtdiError> {
         let this = Self {
             interface,
             index,
             bitmode,
             max_packet_size,
-            fifo_size,
-            tx_buffer: Default::default(),
-            response_info: Default::default(),
+
+            async_tx_buffer: Default::default(),
+            async_response_len: 0,
         };
         this.reset()?;
         this.set_latency_timer(0xff)?;
@@ -84,23 +82,6 @@ impl FtdiInterface {
                 Duration::from_millis(50),
             )
             .map_err(|e| FtdiError::TransferError(e))?)
-    }
-    pub fn write(&self, data: &[u8]) -> Result<(), FtdiError> {
-        // println!("write ep[{:x}],data:{:02x?}", self.index.write_ep(), data);
-        block_on(self.interface.bulk_out(self.index.write_ep(), data.into()))
-            .into_result()
-            .map_err(|e| FtdiError::TransferError(e))?;
-        Ok(())
-    }
-    pub fn read(&self) -> Result<Vec<u8>, FtdiError> {
-        let result = block_on(
-            self.interface
-                .bulk_in(self.index.read_ep(), RequestBuffer::new(512)),
-        )
-        .into_result()
-        .map_err(|e| FtdiError::TransferError(e))?;
-        // println!("read ep[{:x}],data:{:02x?}", self.index.read_ep(), result);
-        Ok(result)
     }
 }
 
@@ -136,7 +117,7 @@ impl FtdiInterface {
 }
 
 impl FtdiInterface {
-    pub fn set_speed(&self, speed_hz: usize) -> Result<(), FtdiError> {
+    pub fn set_speed(&mut self, speed_hz: usize) -> Result<(), FtdiError> {
         let mut cmd = Vec::new();
         let mut base_speed = 30_000_000usize;
         if speed_hz < 6_000_000 {
@@ -153,143 +134,107 @@ impl FtdiInterface {
         cmd.push(Command::SetClkDivisor.into());
         cmd.push(div as u8);
         cmd.push((div >> 8) as u8);
-        self.write(&cmd)?;
+        self.immidiate_write(&cmd, 0)?;
         Ok(())
     }
-    pub fn common_setting(&mut self) {
+    pub fn common_setting(&mut self) -> Result<(), FtdiError> {
         // 85,97,8d
         // disable loopback
         // TurnOffnAdaptiveClocking
         // disable 3 phase
-        self.schedule_write(&[Command::DisLoopBack.into()]);
-        self.schedule_write(&[Command::DisableAdaptiveClocking.into()]);
-        self.schedule_write(&[Command::Disable3PhaseDataClock.into()]);
+        self.immidiate_write(
+            &[
+                Command::DisLoopBack.into(),
+                Command::DisableAdaptiveClocking.into(),
+                Command::Disable3PhaseDataClock.into(),
+            ],
+            0,
+        )?;
+        Ok(())
     }
-    pub fn schedule_write(&mut self, command: &[u8]) {
-        // println!("cmd:{:x?}", command);
-        let mut will_receive = if let Some(len) = self.response_info.last() {
-            *len
-        } else {
-            0
-        };
-        if command[0] & 0x80 == 0 {
-            self.tx_buffer.push(command[0]);
-            self.response_info.push(will_receive);
-            // shift command
-            let shift_cmd = CommandShift::from(command[0]);
-            if shift_cmd.bit_mode() {
-                self.tx_buffer.push(command[1]);
-                if shift_cmd.write_tdi() || shift_cmd.write_tms() {
-                    debug_assert_eq!(command.len(), 3);
-                    self.response_info.push(will_receive);
-                    self.tx_buffer.push(command[2]);
-                    let read_on_write = shift_cmd.read_tdo() as usize;
-                    self.response_info.push(will_receive + read_on_write);
-                } else {
-                    // only read
-                    debug_assert_eq!(command.len(), 2);
-                    self.response_info.push(will_receive + 1);
-                }
-            } else {
-                let rw_len: usize = command[1] as usize + ((command[2] as usize) << 8) + 1;
-                self.tx_buffer.push(command[1]);
-                self.tx_buffer.push(command[2]);
-                self.response_info.push(will_receive);
-                if shift_cmd.write_tdi() {
-                    debug_assert_eq!(command.len(), rw_len + 3);
-                    self.response_info.push(will_receive);
-                    let read_on_write = shift_cmd.read_tdo() as usize;
-                    for i in 0..rw_len {
-                        self.tx_buffer.push(command[3 + i]);
-                        will_receive += read_on_write;
-                        self.response_info.push(will_receive);
-                    }
-                } else {
-                    debug_assert_eq!(command.len(), 3);
-                    self.response_info.push(will_receive + rw_len);
-                }
-            }
-        } else if command[0] == Command::SetClkDivisor.into() {
-            // set clk
-            debug_assert_eq!(command.len(), 3);
-            self.tx_buffer.extend_from_slice(command);
-            self.response_info.extend_from_slice(&[will_receive; 3]);
-        } else if command[0] & 0b11111100 == 0x80 {
-            // get set bits
-            if command[0] & 0x01 == 0 {
-                // set
-                debug_assert_eq!(command.len(), 3);
-                self.tx_buffer.extend_from_slice(command);
-                self.response_info.extend_from_slice(&[will_receive; 3]);
-            } else {
-                // get
-                debug_assert_eq!(command.len(), 2);
-                self.tx_buffer.extend_from_slice(command);
-                self.response_info
-                    .extend_from_slice(&[will_receive, will_receive + 1]);
-            }
-        } else if command[0] & 0b11111100 == 0x90 {
-            // cpu mode
-            todo!()
-        } else {
-            // only command
-            debug_assert_eq!(command.len(), 1);
-            self.tx_buffer.push(command[0]);
-            self.response_info.push(will_receive);
-        }
-    }
-    pub fn read_result(&mut self) -> Result<Vec<u8>, FtdiError> {
-        debug_assert_eq!(self.tx_buffer.len(), self.response_info.len());
-        // println!("response_info: {:?}",self.response_info);
-        let response_len = if let Some(len) = self.response_info.last() {
-            *len
-        } else {
-            0
-        };
-        let fifo_len = self.fifo_size;
-        let mut tx_fifo_used = 0;
-        let mut cmd_slice: &[u8] = &self.tx_buffer;
-        let mut response = Vec::new();
-        let mut response_len_index = 0;
+}
 
-        while response.len() < response_len {
-            // fill txfifo
-            println!("fill txfifo");
-            while tx_fifo_used < fifo_len && cmd_slice.len() > 0 {
-                let mut this_packet_size = if self.max_packet_size > (fifo_len - tx_fifo_used) {
-                    fifo_len - tx_fifo_used
+impl FtdiInterface {
+    pub fn immidiate_write(
+        &mut self,
+        command: &[u8],
+        response_len: usize,
+    ) -> Result<Vec<u8>, FtdiError> {
+        assert_eq!(self.async_tx_buffer.len(), 0);
+        assert_eq!(self.async_response_len, 0);
+        self.schedule_write_async(command, response_len);
+        self.read_result_async()
+    }
+    pub fn schedule_write_async(&mut self, command: &[u8], response_len: usize) {
+        // println!("cmd:{:x?}", command);
+        self.async_tx_buffer.extend_from_slice(command);
+        self.async_response_len += response_len
+    }
+    pub fn read_result_async(&mut self) -> Result<Vec<u8>, FtdiError> {
+        let response_len = self.async_response_len;
+
+        let tx_task = async {
+            let time = Instant::now();
+            let tx_buf_len = self.async_tx_buffer.len();
+            let mut tx_finished_len = 0;
+            while tx_finished_len < tx_buf_len {
+                let this_package_len = if 512 < tx_buf_len - tx_finished_len {
+                    512
                 } else {
-                    self.max_packet_size
+                    tx_buf_len - tx_finished_len
                 };
-                this_packet_size = if this_packet_size > cmd_slice.len() {
-                    cmd_slice.len()
-                } else {
-                    this_packet_size
-                };
-                self.write(&cmd_slice[0..this_packet_size])?;
-                cmd_slice = &cmd_slice[this_packet_size..];
-                tx_fifo_used += this_packet_size;
-                print!("tx_fifo_used:{tx_fifo_used}-");
-                println!("cmd_slice_len:{}", cmd_slice.len());
-            }
-            // read response
-            println!("read response");
-            let this_response = self.read()?;
-            if this_response[0] == 0xff {
-                return Err(FtdiError::CommandError(Command::from(this_response[1])));
-            }
-            response.extend_from_slice(&this_response[2..]);
-            // cacluraue tx fifo status
-            println!("cacluraue tx fifo status");
-            while self.response_info[response_len_index] < response.len() {
-                response_len_index += 1;
-                if tx_fifo_used > 0 {
-                    tx_fifo_used -= 1;
+                let tx_result = self
+                    .interface
+                    .bulk_out(
+                        self.index.write_ep(),
+                        self.async_tx_buffer[tx_finished_len..tx_finished_len + this_package_len]
+                            .to_vec(),
+                    )
+                    .await
+                    .into_result();
+                if tx_result.is_err() {
+                    return Err(FtdiError::TransferError(tx_result.unwrap_err()));
+                }
+                tx_finished_len += this_package_len;
+                //println!("tx_finished_len:{tx_finished_len}");
+                if time.elapsed().as_millis() > 1000 {
+                    return Err(FtdiError::Timeout);
                 }
             }
-        }
-        self.tx_buffer.clear();
-        self.response_info.clear();
-        Ok(response)
+            self.async_tx_buffer.clear();
+            Ok(())
+        };
+
+        let rx_task = async {
+            let time = Instant::now();
+            let mut response = Vec::new();
+            while response.len() < response_len {
+                let rx_data = self
+                    .interface
+                    .bulk_in(self.index.read_ep(), RequestBuffer::new(512))
+                    .await
+                    .into_result();
+                match rx_data {
+                    Ok(x) => {
+                        if x[0] == 0xff {
+                            return Err(FtdiError::CommandError(Command::from(x[1])));
+                        }
+                        response.extend_from_slice(&x[2..]);
+                    }
+                    Err(x) => {
+                        return Err(FtdiError::TransferError(x));
+                    }
+                }
+                //println!("response.len():{}",response.len());
+                if time.elapsed().as_millis() > 1000 {
+                    return Err(FtdiError::Timeout);
+                }
+            }
+            self.async_response_len = 0;
+            Ok(response)
+        };
+        let (tx_result, rx_result) = block_on(join(tx_task, rx_task));
+        tx_result?;
+        Ok(rx_result?)
     }
 }

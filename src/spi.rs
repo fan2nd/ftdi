@@ -7,7 +7,7 @@ use embedded_hal::spi::{
 use crate::{command::Command, error::FtdiError, interface::FtdiInterface, request::BitMode};
 
 pub struct FtdiSpi {
-    interface: FtdiInterface,
+    pub interface: FtdiInterface,
     mode: Mode,
 
     bytes_should_read: usize,
@@ -19,25 +19,22 @@ impl FtdiSpi {
     const IDLE_LOW: u8 = 0x08;
 
     pub fn new(mut interface: FtdiInterface, mode: Mode) -> Result<Self, FtdiError> {
+        interface.common_setting();
         if interface.bitmode != BitMode::Mpsse {
             interface.set_bitmode(BitMode::Mpsse)?;
             interface.reset_rx()?;
             interface.reset_tx()?;
         }
         match mode.polarity {
-            Polarity::IdleHigh => interface.schedule_write(&[
-                Command::SetBitsLow.into(),
-                Self::IDLE_HIGH,
-                Self::DIRECTION,
-            ]),
-            Polarity::IdleLow => interface.schedule_write(&[
-                Command::SetBitsLow.into(),
-                Self::IDLE_LOW,
-                Self::DIRECTION,
-            ]),
-        }
-        interface.common_setting();
-        interface.read_result()?;
+            Polarity::IdleHigh => interface.immidiate_write(
+                &[Command::SetBitsLow.into(), Self::IDLE_HIGH, Self::DIRECTION],
+                0,
+            )?,
+            Polarity::IdleLow => interface.immidiate_write(
+                &[Command::SetBitsLow.into(), Self::IDLE_LOW, Self::DIRECTION],
+                0,
+            )?,
+        };
         Ok(FtdiSpi {
             interface,
             mode,
@@ -57,15 +54,12 @@ impl FtdiSpi {
     fn chip_select(&mut self, en: bool) -> Result<(), FtdiError> {
         let value = (en as u8) * 0x08;
         match self.mode.polarity {
-            Polarity::IdleHigh => self.interface.schedule_write(&[
-                Command::SetBitsLow.into(),
-                value + 1,
-                Self::DIRECTION,
-            ]),
-            Polarity::IdleLow => {
-                self.interface
-                    .schedule_write(&[Command::SetBitsLow.into(), value, Self::DIRECTION])
-            }
+            Polarity::IdleHigh => self
+                .interface
+                .schedule_write_async(&[Command::SetBitsLow.into(), value + 1, Self::DIRECTION], 0),
+            Polarity::IdleLow => self
+                .interface
+                .schedule_write_async(&[Command::SetBitsLow.into(), value, Self::DIRECTION], 0),
         }
         Ok(())
     }
@@ -81,7 +75,7 @@ impl FtdiSpi {
         cmd[1] = (data.len() - 1) as u8;
         cmd[2] = ((data.len() - 1) >> 8) as u8;
         cmd[3..].copy_from_slice(data);
-        self.interface.schedule_write(&cmd);
+        self.interface.schedule_write_async(&cmd, 0);
         Ok(())
     }
     fn schedule_read(&mut self, data: &[u8]) -> Result<(), FtdiError> {
@@ -94,7 +88,7 @@ impl FtdiSpi {
         };
         cmd[1] = (data.len() - 1) as u8;
         cmd[2] = ((data.len() - 1) >> 8) as u8;
-        self.interface.schedule_write(&cmd);
+        self.interface.schedule_write_async(&cmd, data.len());
         self.bytes_should_read += data.len();
         Ok(())
     }
@@ -110,12 +104,12 @@ impl FtdiSpi {
         cmd[1] = (data.len() - 1) as u8;
         cmd[2] = ((data.len() - 1) >> 8) as u8;
         cmd[3..].copy_from_slice(data);
-        self.interface.schedule_write(&cmd);
+        self.interface.schedule_write_async(&cmd, data.len());
         self.bytes_should_read += data.len();
         Ok(())
     }
     fn flush(&mut self) -> Result<(), FtdiError> {
-        let result = self.interface.read_result()?;
+        let result = self.interface.read_result_async()?;
         self.read_buffer.extend(result);
         Ok(())
     }
