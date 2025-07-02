@@ -1,0 +1,76 @@
+use eh1::i2c::NoAcknowledgeSource;
+use std::{fmt, io};
+
+/// Error type.
+#[derive(Debug)]
+pub enum Error<E: std::error::Error> {
+    /// ftdi-embedded-hal implementation specific error.
+    Hal(ErrorKind),
+    /// IO error.
+    Io(io::Error),
+    /// Backend specific error.
+    Backend(E),
+}
+
+/// Internal HAL errors
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum ErrorKind {
+    /// No ACK from the I2C slave
+    I2cNoAck(NoAcknowledgeSource),
+}
+
+impl ErrorKind {
+    fn as_str(&self) -> &str {
+        match *self {
+            ErrorKind::I2cNoAck(NoAcknowledgeSource::Address) => {
+                "No ACK from slave during addressing"
+            }
+            ErrorKind::I2cNoAck(NoAcknowledgeSource::Data) => {
+                "No ACK from slave during data transfer"
+            }
+            ErrorKind::I2cNoAck(NoAcknowledgeSource::Unknown) => "No ACK from slave",
+        }
+    }
+}
+
+impl<E: std::error::Error> eh1::i2c::Error for Error<E> {
+    fn kind(&self) -> eh1::i2c::ErrorKind {
+        match self {
+            Self::Hal(ErrorKind::I2cNoAck(src)) => eh1::i2c::ErrorKind::NoAcknowledge(*src),
+            _ => eh1::i2c::ErrorKind::Other,
+        }
+    }
+}
+
+impl<E: std::error::Error> eh1::digital::Error for Error<E> {
+    fn kind(&self) -> eh1::digital::ErrorKind {
+        eh1::digital::ErrorKind::Other
+    }
+}
+
+impl<E: std::error::Error> fmt::Display for Error<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::Io(e) => e.fmt(f),
+            Error::Backend(e) => fmt::Display::fmt(&e, f),
+            Error::Hal(e) => write!(f, "A regular error occurred {:?}", e.as_str()),
+        }
+    }
+}
+
+impl<E: std::error::Error> std::error::Error for Error<E> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::Io(e) => e.source(),
+            Error::Backend(e) => e.source(),
+            Error::Hal(_) => None,
+        }
+    }
+}
+
+impl<E: std::error::Error> From<io::Error> for Error<E> {
+    fn from(e: io::Error) -> Self {
+        Error::Io(e)
+    }
+}

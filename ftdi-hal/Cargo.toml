@@ -1,0 +1,8 @@
+[package]
+name = "ftdi-hal"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eh1 = { package = "embedded-hal", version = "1" }
+ftdi-mpsse = { path = "../ftdi-mpsse" }
