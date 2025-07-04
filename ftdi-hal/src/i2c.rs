@@ -57,6 +57,8 @@ impl I2c {
             // set GPIO pins to new state
             let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
                 .set_gpio_lower(lock.lower.value, lock.lower.direction)
+                .disable_adaptive_data_clocking()
+                .disable_loopback()
                 .enable_3phase_data_clocking()
                 .send_immediate();
             lock.ft.write_read(cmd.as_slice(), &mut [])?;
