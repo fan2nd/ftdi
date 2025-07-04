@@ -1,9 +1,7 @@
-use crate::error::Error;
-use crate::error::ErrorKind::I2cNoAck;
-use crate::gpio::Pin;
-use crate::{FtInner, PinUse};
-use eh1::i2c::{NoAcknowledgeSource, Operation, SevenBitAddress};
-use ftdi_mpsse::{ClockBitsIn, ClockBitsOut, MpsseCmdBuilder, MpsseCmdExecutor};
+use crate::ftdaye::FtdiError;
+use crate::mpsse::{ClockBitsIn, ClockBitsOut, MpsseCmdBuilder};
+use crate::{FtMpsse, Pin, PinUse};
+use eh1::i2c::{ErrorKind, NoAcknowledgeSource, Operation, SevenBitAddress};
 use std::sync::{Arc, Mutex};
 
 /// SCL bitmask
@@ -19,10 +17,9 @@ const BITS_OUT: ClockBitsOut = ClockBitsOut::MsbNeg;
 /// This is created by calling [`FtHal::i2c`].
 ///
 /// [`FtHal::i2c`]: crate::FtHal::i2c
-#[derive(Debug)]
-pub struct I2c<Device: MpsseCmdExecutor> {
+pub struct I2c {
     /// Parent FTDI device.
-    mtx: Arc<Mutex<FtInner<Device>>>,
+    mtx: Arc<Mutex<FtMpsse>>,
     /// Length of the start, repeated start, and stop conditions.
     ///
     /// The units for these are dimensionless number of MPSSE commands.
@@ -30,7 +27,7 @@ pub struct I2c<Device: MpsseCmdExecutor> {
     start_stop_cmds: usize,
 }
 
-impl<Device: MpsseCmdExecutor> Drop for I2c<Device> {
+impl Drop for I2c {
     fn drop(&mut self) {
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.free_pin(Pin::Lower(0));
@@ -39,13 +36,8 @@ impl<Device: MpsseCmdExecutor> Drop for I2c<Device> {
     }
 }
 
-impl<Device, E> I2c<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
-    pub(crate) fn new(mtx: Arc<Mutex<FtInner<Device>>>) -> Result<I2c<Device>, Error<E>> {
+impl I2c {
+    pub fn new(mtx: Arc<Mutex<FtMpsse>>) -> Result<I2c, FtdiError> {
         {
             let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
 
@@ -54,7 +46,7 @@ where
             lock.alloc_pin(Pin::Lower(2), PinUse::I2c);
 
             // clear direction and value of first 3 pins
-
+            // set to input and value 0
             lock.lower.direction &= !0x07;
             lock.lower.value &= !0x07;
             // AD0: SCL
@@ -67,7 +59,7 @@ where
                 .set_gpio_lower(lock.lower.value, lock.lower.direction)
                 .enable_3phase_data_clocking()
                 .send_immediate();
-            lock.ft.send(cmd.as_slice())?;
+            lock.ft.write_read(cmd.as_slice(), &mut [])?;
         }
 
         Ok(I2c {
@@ -106,7 +98,7 @@ where
         &mut self,
         address: u8,
         operations: &mut [Operation<'_>],
-    ) -> Result<(), Error<E>> {
+    ) -> Result<(), ErrorKind> {
         // lock at the start to prevent GPIO from being modified while we build
         // the MPSSE command
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
@@ -123,7 +115,7 @@ where
             mpsse_cmd =
                 mpsse_cmd.set_gpio_lower(lock.lower.value | SCL, SCL | SDA | lock.lower.direction)
         }
-        lock.ft.send(mpsse_cmd.as_slice())?;
+        lock.ft.write_read(mpsse_cmd.as_slice(), &mut [])?;
 
         let mut prev_op_was_a_read: bool = false;
         for (idx, operation) in operations.iter_mut().enumerate() {
@@ -162,11 +154,10 @@ where
                             .clock_bits_in(BITS_IN, 1)
                             .send_immediate();
 
-                        lock.ft.send(mpsse_cmd.as_slice())?;
                         let mut ack_buf: [u8; 1] = [0; 1];
-                        lock.ft.recv(&mut ack_buf)?;
+                        lock.ft.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
                         if (ack_buf[0] & 0b1) != 0x00 {
-                            return Err(Error::Hal(I2cNoAck(NoAcknowledgeSource::Address)));
+                            return Err(ErrorKind::NoAcknowledge(NoAcknowledgeSource::Address));
                         }
                     }
 
@@ -178,17 +169,22 @@ where
                         if idx == buffer.len() - 1 {
                             // NMAK
                             mpsse_cmd = mpsse_cmd
-                                .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
+                                .set_gpio_lower(
+                                    lock.lower.value,
+                                    SCL | SDA | lock.lower.direction,
+                                )
                                 .clock_bits_out(BITS_OUT, 0x80, 1)
                         } else {
                             // MAK
                             mpsse_cmd = mpsse_cmd
-                                .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
+                                .set_gpio_lower(
+                                    lock.lower.value,
+                                    SCL | SDA | lock.lower.direction,
+                                )
                                 .clock_bits_out(BITS_OUT, 0x00, 1)
                         }
                     }
-                    lock.ft.send(mpsse_cmd.as_slice())?;
-                    lock.ft.recv(buffer)?;
+                    lock.ft.write_read(mpsse_cmd.as_slice(), &mut [])?;
 
                     prev_op_was_a_read = true;
                 }
@@ -226,11 +222,10 @@ where
                             .clock_bits_in(BITS_IN, 1)
                             .send_immediate();
 
-                        lock.ft.send(mpsse_cmd.as_slice())?;
                         let mut ack_buf: [u8; 1] = [0; 1];
-                        lock.ft.recv(&mut ack_buf)?;
+                        lock.ft.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
                         if (ack_buf[0] & 0b1) != 0x00 {
-                            return Err(Error::Hal(I2cNoAck(NoAcknowledgeSource::Address)));
+                            return Err(ErrorKind::NoAcknowledge(NoAcknowledgeSource::Address));
                         }
                     }
 
@@ -245,11 +240,10 @@ where
                             .clock_bits_in(BITS_IN, 1)
                             .send_immediate();
 
-                        lock.ft.send(mpsse_cmd.as_slice())?;
                         let mut ack_buf: [u8; 1] = [0; 1];
-                        lock.ft.recv(&mut ack_buf)?;
+                        lock.ft.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
                         if (ack_buf[0] & 0b1) != 0x00 {
-                            return Err(Error::Hal(I2cNoAck(NoAcknowledgeSource::Data)));
+                            return Err(ErrorKind::NoAcknowledge(NoAcknowledgeSource::Data));
                         }
                     }
 
@@ -261,7 +255,8 @@ where
         let mut mpsse_cmd: MpsseCmdBuilder = MpsseCmdBuilder::new();
         // SP
         for _ in 0..self.start_stop_cmds {
-            mpsse_cmd = mpsse_cmd.set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
+            mpsse_cmd =
+                mpsse_cmd.set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
         }
         for _ in 0..self.start_stop_cmds {
             mpsse_cmd =
@@ -278,27 +273,23 @@ where
         mpsse_cmd = mpsse_cmd
             .set_gpio_lower(lock.lower.value, lock.lower.direction)
             .send_immediate();
-        lock.ft.send(mpsse_cmd.as_slice())?;
+        lock.ft.write_read(mpsse_cmd.as_slice(), &mut [])?;
 
         Ok(())
     }
 }
 
-impl<Device, E> eh1::i2c::ErrorType for I2c<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
-    type Error = Error<E>;
+impl From<FtdiError> for ErrorKind {
+    fn from(_value: FtdiError) -> Self {
+        ErrorKind::Other
+    }
 }
 
-impl<Device, E> eh1::i2c::I2c for I2c<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
+impl eh1::i2c::ErrorType for I2c {
+    type Error = eh1::i2c::ErrorKind;
+}
+
+impl eh1::i2c::I2c for I2c {
     fn transaction(
         &mut self,
         address: SevenBitAddress,

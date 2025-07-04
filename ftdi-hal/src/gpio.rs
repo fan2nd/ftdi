@@ -1,14 +1,7 @@
-use crate::error::Error;
-use crate::{FtInner, PinUse};
-use ftdi_mpsse::{MpsseCmdBuilder, MpsseCmdExecutor};
+use crate::ftdaye::FtdiError;
+use crate::mpsse::MpsseCmdBuilder;
+use crate::{FtMpsse, Pin, PinUse};
 use std::sync::{Arc, Mutex};
-
-/// Pin number
-#[derive(Debug, Copy, Clone)]
-pub(crate) enum Pin {
-    Lower(usize),
-    Upper(usize),
-}
 
 /// FTDI output pin.
 ///
@@ -16,31 +9,22 @@ pub(crate) enum Pin {
 ///
 /// [`FtHal::ad0`]: crate::FtHal::ad0
 /// [`FtHal::ad7`]: crate::FtHal::ad7
-#[derive(Debug)]
-pub struct OutputPin<Device: MpsseCmdExecutor> {
+pub struct OutputPin {
     /// Parent FTDI device.
-    mtx: Arc<Mutex<FtInner<Device>>>,
+    mtx: Arc<Mutex<FtMpsse>>,
     /// GPIO pin index.  0-7 for the FT232H.
     pin: Pin,
 }
 
-impl<Device: MpsseCmdExecutor> Drop for OutputPin<Device> {
+impl Drop for OutputPin {
     fn drop(&mut self) {
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.free_pin(self.pin);
     }
 }
 
-impl<Device, E> OutputPin<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
-    pub(crate) fn new(
-        mtx: Arc<Mutex<FtInner<Device>>>,
-        pin: Pin,
-    ) -> Result<OutputPin<Device>, Error<E>> {
+impl OutputPin {
+    pub fn new(mtx: Arc<Mutex<FtMpsse>>, pin: Pin) -> Result<OutputPin, FtdiError> {
         {
             let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
 
@@ -57,12 +41,12 @@ where
                 Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
             }
             .send_immediate();
-            lock.ft.send(cmd.as_slice())?;
+            lock.ft.write_read(cmd.as_slice(), &mut [])?;
         }
         Ok(OutputPin { mtx, pin })
     }
 
-    pub(crate) fn set(&self, state: bool) -> Result<(), Error<E>> {
+    pub(crate) fn set(&self, state: bool) -> Result<(), FtdiError> {
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
 
         let byte = match self.pin {
@@ -82,13 +66,10 @@ where
             Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
         }
         .send_immediate();
-        lock.ft.send(cmd.as_slice())?;
+        lock.ft.write_read(cmd.as_slice(), &mut [])?;
 
         Ok(())
     }
-}
-
-impl<Device: MpsseCmdExecutor> OutputPin<Device> {
     /// Convert the GPIO pin index to a pin mask
     pub(crate) fn mask(&self) -> u8 {
         let idx = match self.pin {
@@ -99,26 +80,22 @@ impl<Device: MpsseCmdExecutor> OutputPin<Device> {
     }
 }
 
-impl<Device, E> eh1::digital::ErrorType for OutputPin<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
-    type Error = Error<E>;
+impl eh1::digital::Error for FtdiError {
+    fn kind(&self) -> eh1::digital::ErrorKind {
+        eh1::digital::ErrorKind::Other
+    }
 }
 
-impl<Device, E> eh1::digital::OutputPin for OutputPin<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
-    fn set_low(&mut self) -> Result<(), Error<E>> {
+impl eh1::digital::ErrorType for OutputPin {
+    type Error = FtdiError;
+}
+
+impl eh1::digital::OutputPin for OutputPin {
+    fn set_low(&mut self) -> Result<(), FtdiError> {
         self.set(false)
     }
 
-    fn set_high(&mut self) -> Result<(), Error<E>> {
+    fn set_high(&mut self) -> Result<(), FtdiError> {
         self.set(true)
     }
 }
@@ -129,31 +106,22 @@ where
 ///
 /// [`FtHal::adi0`]: crate::FtHal::adi0
 /// [`FtHal::adi7`]: crate::FtHal::adi7
-#[derive(Debug)]
-pub struct InputPin<Device: MpsseCmdExecutor> {
+pub struct InputPin {
     /// Parent FTDI device.
-    mtx: Arc<Mutex<FtInner<Device>>>,
+    mtx: Arc<Mutex<FtMpsse>>,
     /// GPIO pin index.  0-7 for the FT232H.
     pin: Pin,
 }
 
-impl<Device: MpsseCmdExecutor> Drop for InputPin<Device> {
+impl Drop for InputPin {
     fn drop(&mut self) {
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.free_pin(self.pin);
     }
 }
 
-impl<Device, E> InputPin<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
-    pub(crate) fn new(
-        mtx: Arc<Mutex<FtInner<Device>>>,
-        pin: Pin,
-    ) -> Result<InputPin<Device>, Error<E>> {
+impl InputPin {
+    pub fn new(mtx: Arc<Mutex<FtMpsse>>, pin: Pin) -> Result<InputPin, FtdiError> {
         {
             let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
 
@@ -170,12 +138,12 @@ where
                 Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
             }
             .send_immediate();
-            lock.ft.send(cmd.as_slice())?;
+            lock.ft.write_read(cmd.as_slice(), &mut [])?;
         }
         Ok(InputPin { mtx, pin })
     }
 
-    pub(crate) fn get(&self) -> Result<bool, Error<E>> {
+    pub(crate) fn get(&self) -> Result<bool, FtdiError> {
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
 
         let mut buffer = [0u8; 1];
@@ -185,14 +153,13 @@ where
             Pin::Upper(_) => cmd.gpio_upper(),
         }
         .send_immediate();
-        lock.ft.send(cmd.as_slice())?;
-        lock.ft.recv(&mut buffer)?;
+        lock.ft.write_read(cmd.as_slice(), &mut buffer)?;
 
         Ok((buffer[0] & self.mask()) != 0)
     }
 }
 
-impl<Device: MpsseCmdExecutor> InputPin<Device> {
+impl InputPin {
     /// Convert the GPIO pin index to a pin mask
     pub(crate) fn mask(&self) -> u8 {
         let idx = match self.pin {
@@ -203,21 +170,11 @@ impl<Device: MpsseCmdExecutor> InputPin<Device> {
     }
 }
 
-impl<Device, E> eh1::digital::ErrorType for InputPin<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
-    type Error = Error<E>;
+impl eh1::digital::ErrorType for InputPin {
+    type Error = FtdiError;
 }
 
-impl<Device, E> eh1::digital::InputPin for InputPin<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
+impl eh1::digital::InputPin for InputPin {
     fn is_high(&mut self) -> Result<bool, Self::Error> {
         self.get()
     }

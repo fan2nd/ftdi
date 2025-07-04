@@ -4,5 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+async-io = "2.4.1"
 eh1 = { package = "embedded-hal", version = "1" }
-ftdi-mpsse = { path = "../ftdi-mpsse" }
+log = "0.4.27"
+nusb = "0.1.14"
+thiserror = "2.0.12"
+tokio = {version="1.46.0",features=["rt","rt-multi-thread","macros","time"]}

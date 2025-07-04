@@ -146,26 +146,22 @@
 //! [newAM/bme280-rs]: https://github.com/newAM/bme280-rs/blob/main/examples/ftdi-i2c.rs
 //! [udev rules]: https://github.com/ftdi-rs/libftd2xx-rs/#udev-rules
 //! [setup executable]: https://www.ftdichip.com/Drivers/CDM/CDM21228_Setup.zip
-#![forbid(missing_docs)]
 #![forbid(unsafe_code)]
 
 pub use eh1;
-pub use ftdi_mpsse;
 
-mod error;
+mod ftdaye;
 mod gpio;
 mod i2c;
+mod list;
+mod mpsse;
 mod spi;
 
-pub use crate::error::{Error, ErrorKind};
 pub use gpio::{InputPin, OutputPin};
 pub use i2c::I2c;
 pub use spi::Spi;
 
-use gpio::Pin;
-
-use ftdi_mpsse::{MpsseCmdExecutor, MpsseSettings};
-use std::sync::{Arc, Mutex};
+use crate::ftdaye::{ChipType, FtdiContext, FtdiError, Interface};
 
 /// Order
 #[derive(Debug, Clone, Copy)]
@@ -175,6 +171,12 @@ pub enum BitOrder {
     /// Bit7 first
     Msb,
 }
+/// Pin number
+#[derive(Debug, Copy, Clone)]
+pub enum Pin {
+    Lower(usize),
+    Upper(usize),
+}
 /// State tracker for each pin on the FTDI chip.
 #[derive(Debug, Clone, Copy)]
 enum PinUse {
@@ -183,10 +185,9 @@ enum PinUse {
     Output,
     Input,
 }
-
 #[derive(Debug, Default)]
 struct GpioByte {
-    /// GPIO direction.
+    /// GPIO direction. 0 for input and 1 for output
     direction: u8,
     /// GPIO value.
     value: u8,
@@ -194,544 +195,83 @@ struct GpioByte {
     pins: [Option<PinUse>; 8],
 }
 
-#[derive(Debug)]
-struct FtInner<Device: MpsseCmdExecutor> {
+pub struct FtMpsse {
     /// FTDI device.
-    ft: Device,
+    ft: FtdiContext,
+    chip_type: ChipType,
     lower: GpioByte,
     upper: GpioByte,
 }
 
-impl<Device: MpsseCmdExecutor> FtInner<Device> {
+impl FtMpsse {
+    pub fn open(
+        usb_device: nusb::DeviceInfo,
+        interface: Interface,
+        mask: u8,
+    ) -> Result<Self, FtdiError> {
+        let handle = usb_device.open()?;
+        let max_packet_size = {
+            let interface_alt_settings: Vec<_> = handle
+                .active_configuration()?
+                .interface_alt_settings()
+                .collect();
+            let endpoints: Vec<_> = interface_alt_settings[interface as usize - 1]
+                .endpoints()
+                .collect();
+            endpoints[0].max_packet_size()
+        };
+        let chip_type = match (
+            usb_device.device_version(),
+            usb_device.serial_number().unwrap_or(""),
+        ) {
+            (0x400, _) | (0x200, "") => ChipType::Bm,
+            (0x200, _) => ChipType::Am,
+            (0x500, _) => ChipType::FT2232C,
+            (0x600, _) => ChipType::R,
+            (0x700, _) => ChipType::FT2232H,
+            (0x800, _) => ChipType::FT4232H,
+            (0x900, _) => ChipType::FT232H,
+            (0x1000, _) => ChipType::FT230X,
+
+            (version, _) => {
+                return Err(FtdiError::Other(format!(
+                    "Unkonwn ChipType version:0x{version:x}",
+                )));
+            }
+        };
+
+        let handle = handle.detach_and_claim_interface(interface as u8 - 1)?;
+
+        Ok(Self {
+            ft: FtdiContext::new(handle, interface, max_packet_size).into_mpsse(mask)?,
+            chip_type,
+            lower: Default::default(),
+            upper: Default::default(),
+        })
+    }
     /// Allocate a pin for a specific use.
-    pub fn alloc_pin(&mut self, pin: Pin, purpose: PinUse) {
+    fn alloc_pin(&mut self, pin: Pin, purpose: PinUse) {
         let (byte, idx) = match pin {
             Pin::Lower(idx) => (&mut self.lower, idx),
             Pin::Upper(idx) => (&mut self.upper, idx),
         };
         assert!(idx < 8, "Pin index {idx} is out of range 0 - 7");
 
-        if let Some(current) = byte.pins[usize::from(idx)] {
+        if let Some(current) = byte.pins[idx] {
             panic!(
                 "Unable to allocate pin {pin:?} for {purpose:?}, pin is already allocated for {current:?}"
             );
         } else {
-            byte.pins[usize::from(idx)] = Some(purpose)
+            byte.pins[idx] = Some(purpose)
         }
     }
     /// Allocate a pin for a specific use.
-    pub fn free_pin(&mut self, pin: Pin) {
+    fn free_pin(&mut self, pin: Pin) {
         let (byte, idx) = match pin {
             Pin::Lower(idx) => (&mut self.lower, idx),
             Pin::Upper(idx) => (&mut self.upper, idx),
         };
         assert!(idx < 8, "Pin index {idx} is out of range 0 - 7");
         byte.pins[idx] = None
-    }
-}
-
-impl<Device: MpsseCmdExecutor> From<Device> for FtInner<Device> {
-    fn from(ft: Device) -> Self {
-        FtInner {
-            ft,
-            lower: Default::default(),
-            upper: Default::default(),
-        }
-    }
-}
-
-/// FTxxx device.
-#[derive(Debug)]
-pub struct FtHal<Device: MpsseCmdExecutor> {
-    mtx: Arc<Mutex<FtInner<Device>>>,
-}
-
-impl<Device, E> FtHal<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
-    /// Initialize the FTDI MPSSE with sane defaults.
-    ///
-    /// Default values:
-    ///
-    /// * Reset the FTDI device.
-    /// * 4k USB transfer size.
-    /// * 1s USB read timeout.
-    /// * 1s USB write timeout.
-    /// * 16ms latency timer.
-    /// * 100kHz clock frequency.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use ftdi_embedded_hal as hal;
-    ///
-    /// # #[cfg(feature = "libftd2xx")]
-    /// # {
-    /// let device = libftd2xx::Ft232h::with_description("Single RS232-HS")?;
-    /// let hal = hal::FtHal::init_default(device)?;
-    /// # }
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
-    pub fn init_default(device: Device) -> Result<FtHal<Device>, Error<E>> {
-        let settings: MpsseSettings = MpsseSettings {
-            clock_frequency: Some(100_000),
-            ..Default::default()
-        };
-
-        Ok(FtHal::init(device, &settings)?)
-    }
-
-    /// Initialize the FTDI MPSSE with sane defaults and custom frequency
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use ftdi_embedded_hal as hal;
-    ///
-    /// # #[cfg(feature = "libftd2xx")]
-    /// # {
-    /// let device = libftd2xx::Ft232h::with_description("Single RS232-HS")?;
-    /// let hal = hal::FtHal::init_freq(device, 3_000_000)?;
-    /// # }
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
-    pub fn init_freq(device: Device, freq: u32) -> Result<FtHal<Device>, Error<E>> {
-        let settings: MpsseSettings = MpsseSettings {
-            clock_frequency: Some(freq),
-            ..Default::default()
-        };
-
-        Ok(FtHal::init(device, &settings)?)
-    }
-
-    /// Initialize the FTDI MPSSE with custom values.
-    ///
-    /// **Note:** The `mask` field of [`MpsseSettings`] is ignored for this function.
-    ///
-    /// **Note:** The clock frequency will be 2/3 of the specified value when in
-    /// I2C mode.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the `clock_frequency` field of [`MpsseSettings`] is `None`.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use ftdi_embedded_hal as hal;
-    /// use ftdi_mpsse::MpsseSettings;
-    /// use std::time::Duration;
-    ///
-    /// let mpsse = MpsseSettings {
-    ///     reset: false,
-    ///     in_transfer_size: 4096,
-    ///     read_timeout: Duration::from_secs(5),
-    ///     write_timeout: Duration::from_secs(5),
-    ///     latency_timer: Duration::from_millis(32),
-    ///     mask: 0x00,
-    ///     clock_frequency: Some(400_000),
-    /// };
-    ///
-    /// # #[cfg(feature = "libftd2xx")]
-    /// # {
-    /// let device = libftd2xx::Ft232h::with_description("Single RS232-HS")?;
-    /// let hal = hal::FtHal::init(device, &mpsse)?;
-    /// # }
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
-    ///
-    /// [`MpsseSettings`]: ftdi_mpsse::MpsseSettings
-    pub fn init(mut device: Device, mpsse_settings: &MpsseSettings) -> Result<FtHal<Device>, E> {
-        device.init(mpsse_settings)?;
-
-        Ok(FtHal {
-            mtx: Arc::new(Mutex::new(device.into())),
-        })
-    }
-}
-
-impl<Device, E> FtHal<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
-    /// Executes the closure with the device.
-    ///
-    /// Useful for accessing EEPROM, or other device-specific functionality.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use ftdi_embedded_hal as hal;
-    /// # #[cfg(feature = "libftd2xx")]
-    /// use hal::libftd2xx::FtdiEeprom;
-    ///
-    /// # #[cfg(feature = "libftd2xx")]
-    /// # {
-    /// let device = libftd2xx::Ft2232h::with_description("Dual RS232-HS A")?;
-    /// let mut hal = hal::FtHal::init_default(device)?;
-    /// let serial_number: String =
-    ///     hal.with_device(|d| d.eeprom_read().map(|(_, strings)| strings.serial_number()))?;
-    /// # }
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
-    pub fn with_device<T, F>(&mut self, mut f: F) -> T
-    where
-        F: FnMut(&mut Device) -> T,
-    {
-        let mut inner = self.mtx.lock().expect("Failed to aquire FTDI mutex");
-        let result: T = f(&mut inner.ft);
-        result
-    }
-
-    /// Aquire the SPI peripheral for the FT232H.
-    ///
-    /// Pin assignments:
-    /// * AD0 => SCK
-    /// * AD1 => MOSI
-    /// * AD2 => MISO
-    ///
-    /// # Panics
-    ///
-    /// Panics if pin 0, 1, or 2 are already in use.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use ftdi_embedded_hal as hal;
-    ///
-    /// # #[cfg(feature = "libftd2xx")]
-    /// # {
-    /// let device = libftd2xx::Ft2232h::with_description("Dual RS232-HS A")?;
-    /// let hal = hal::FtHal::init_freq(device, 3_000_000)?;
-    /// let spi = hal.spi()?;
-    /// # }
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
-    pub fn spi(&self) -> Result<Spi<Device>, Error<E>> {
-        Spi::new(self.mtx.clone())
-    }
-
-    /// Aquire the I2C peripheral for the FT232H.
-    ///
-    /// Pin assignments:
-    /// * AD0 => SCL
-    /// * AD1 => SDA
-    /// * AD2 => SDA
-    ///
-    /// Yes, AD1 and AD2 are both SDA.
-    /// These pins must be shorted together for I2C operation.
-    ///
-    /// # Panics
-    ///
-    /// Panics if pin 0, 1, or 2 are already in use.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use ftdi_embedded_hal as hal;
-    ///
-    /// # #[cfg(feature = "libftd2xx")]
-    /// # {
-    /// let device = libftd2xx::Ft2232h::with_description("Dual RS232-HS A")?;
-    /// let hal = hal::FtHal::init_freq(device, 3_000_000)?;
-    /// let i2c = hal.i2c()?;
-    /// # }
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
-    pub fn i2c(&self) -> Result<I2c<Device>, Error<E>> {
-        I2c::new(self.mtx.clone())
-    }
-
-    /// Aquire the digital output pin 0 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn d0(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Lower(0))
-    }
-
-    /// Aquire the digital input pin 0 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn di0(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Lower(0))
-    }
-
-    /// Aquire the digital output pin 1 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn d1(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Lower(1))
-    }
-
-    /// Aquire the digital input pin 1 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn di1(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Lower(1))
-    }
-
-    /// Aquire the digital output pin 2 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn d2(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Lower(2))
-    }
-
-    /// Aquire the digital input pin 2 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn di2(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Lower(2))
-    }
-
-    /// Aquire the digital output pin 3 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn d3(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Lower(3))
-    }
-
-    /// Aquire the digital input pin 3 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn di3(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Lower(3))
-    }
-
-    /// Aquire the digital output pin 4 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn d4(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Lower(4))
-    }
-
-    /// Aquire the digital input pin 4 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn di4(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Lower(4))
-    }
-
-    /// Aquire the digital output pin 5 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn d5(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Lower(5))
-    }
-
-    /// Aquire the digital input pin 5 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn di5(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Lower(5))
-    }
-
-    /// Aquire the digital output pin 6 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn d6(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Lower(6))
-    }
-
-    /// Aquire the digital input pin 6 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn di6(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Lower(6))
-    }
-
-    /// Aquire the digital output pin 7 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn d7(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Lower(7))
-    }
-
-    /// Aquire the digital input pin 7 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn di7(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Lower(7))
-    }
-
-    /// Aquire the digital output upper pin 0 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn c0(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Upper(0))
-    }
-
-    /// Aquire the digital input upper pin 0 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn ci0(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Upper(0))
-    }
-
-    /// Aquire the digital output upper pin 1 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn c1(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Upper(1))
-    }
-
-    /// Aquire the digital input upper pin 1 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn ci1(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Upper(1))
-    }
-
-    /// Aquire the digital output upper pin 2 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn c2(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Upper(2))
-    }
-
-    /// Aquire the digital input upper pin 2 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn ci2(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Upper(2))
-    }
-
-    /// Aquire the digital output upper pin 3 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn c3(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Upper(3))
-    }
-
-    /// Aquire the digital input upper pin 3 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn ci3(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Upper(3))
-    }
-
-    /// Aquire the digital output upper pin 4 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn c4(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Upper(4))
-    }
-
-    /// Aquire the digital input upper pin 4 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn ci4(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Upper(4))
-    }
-
-    /// Aquire the digital output upper pin 5 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn c5(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Upper(5))
-    }
-
-    /// Aquire the digital input upper pin 5 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn ci5(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Upper(5))
-    }
-
-    /// Aquire the digital output upper pin 6 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn c6(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Upper(6))
-    }
-
-    /// Aquire the digital input upper pin 6 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn ci6(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Upper(6))
-    }
-
-    /// Aquire the digital output upper pin 7 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn c7(&self) -> Result<OutputPin<Device>, Error<E>> {
-        OutputPin::new(self.mtx.clone(), Pin::Upper(7))
-    }
-
-    /// Aquire the digital input upper pin 7 for the FT232H.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the pin is already in-use.
-    pub fn ci7(&self) -> Result<InputPin<Device>, Error<E>> {
-        InputPin::new(self.mtx.clone(), Pin::Upper(7))
     }
 }

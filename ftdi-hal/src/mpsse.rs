@@ -1,7 +1,5 @@
+//! Copy from ftdi-mpsse crate
 //! Multi-protocol synchronous serial engine utilities for FTDI devices.
-#![deny(unsafe_code)]
-
-use std::time::Duration;
 
 /// MPSSE opcodes.
 ///
@@ -322,70 +320,6 @@ impl From<ClockTMS> for u8 {
     }
 }
 
-/// Initialization settings for the MPSSE.
-///
-/// Settings can be written to the device with the appropriate
-/// implementation of [`init`] method.
-///
-/// [`init`]: MpsseCmdExecutor::init
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct MpsseSettings {
-    /// Reset the MPSSE on initialization.
-    pub reset: bool,
-    /// USB in transfer size in bytes.
-    pub in_transfer_size: u32,
-    /// Read timeout.
-    pub read_timeout: Duration,
-    /// Write timeout.
-    pub write_timeout: Duration,
-    /// Latency timer.
-    pub latency_timer: Duration,
-    /// Bitmode mask.
-    ///
-    /// * A bit value of `0` sets the corresponding pin to an input.
-    /// * A bit value of `1` sets the corresponding pin to an output.
-    pub mask: u8,
-    /// Clock frequency.
-    ///
-    /// If `None`, then no frequency changes will be applied.
-    pub clock_frequency: Option<u32>,
-}
-
-impl std::default::Default for MpsseSettings {
-    fn default() -> Self {
-        MpsseSettings {
-            reset: true,
-            in_transfer_size: 4096,
-            read_timeout: Duration::from_secs(1),
-            write_timeout: Duration::from_secs(1),
-            latency_timer: Duration::from_millis(16),
-            mask: 0x00,
-            clock_frequency: None,
-        }
-    }
-}
-
-/// FTDI MPSSE configurator and executor
-pub trait MpsseCmdExecutor {
-    /// Error type
-    type Error;
-
-    /// Configure FTDI MPSSE mode
-    fn init(&mut self, settings: &MpsseSettings) -> Result<(), Self::Error>;
-
-    /// Execute MPSSE write command sequence
-    fn send(&mut self, data: &[u8]) -> Result<(), Self::Error>;
-
-    /// Execute MPSSE read command sequence
-    fn recv(&mut self, data: &mut [u8]) -> Result<(), Self::Error>;
-
-    /// Execute MPSSE command and read response
-    fn xfer(&mut self, txdata: &[u8], rxdata: &mut [u8]) -> Result<(), Self::Error> {
-        self.send(txdata)?;
-        self.recv(rxdata)
-    }
-}
-
 /// FTDI Multi-Protocol Synchronous Serial Engine (MPSSE) command builder.
 ///
 /// For details about the MPSSE read the [FTDI MPSSE Basics].
@@ -405,20 +339,14 @@ pub trait MpsseCmdExecutor {
 /// [`send`]: MpsseCmdExecutor::send
 /// [`xfer`]: MpsseCmdExecutor::xfer
 pub struct MpsseCmdBuilder(pub Vec<u8>);
-
-impl Default for MpsseCmdBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
+#[allow(unused)]
 impl MpsseCmdBuilder {
     /// Create a new command builder.
     ///
     /// # Example
     ///
     /// ```
-    /// use ftdi_mpsse::MpsseCmdBuilder;
+    /// use crate::mpsse::MpsseCmdBuilder;
     ///
     /// MpsseCmdBuilder::new();
     /// ```
@@ -431,7 +359,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```
-    /// use ftdi_mpsse::MpsseCmdBuilder;
+    /// use crate::mpsse::MpsseCmdBuilder;
     ///
     /// MpsseCmdBuilder::with_vec(Vec::new());
     /// ```
@@ -444,7 +372,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// use ftdi_mpsse::MpsseCmdBuilder;
+    /// use crate::mpsse::MpsseCmdBuilder;
     /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
     ///
     /// let cmd = MpsseCmdBuilder::new().enable_loopback();
@@ -466,7 +394,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// use ftdi_mpsse::MpsseCmdBuilder;
+    /// use crate::mpsse::MpsseCmdBuilder;
     ///
     /// let cmd = MpsseCmdBuilder::new().set_clock(9, Some(false));
     ///
@@ -490,7 +418,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// use ftdi_mpsse::MpsseCmdBuilder;
+    /// use crate::mpsse::MpsseCmdBuilder;
     /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
     ///
     /// let cmd = MpsseCmdBuilder::new().enable_loopback();
@@ -510,7 +438,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// use ftdi_mpsse::MpsseCmdBuilder;
+    /// use crate::mpsse::MpsseCmdBuilder;
     /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
     ///
     /// let cmd = MpsseCmdBuilder::new().disable_loopback();
@@ -539,7 +467,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// use ftdi_mpsse::MpsseCmdBuilder;
+    /// use crate::mpsse::MpsseCmdBuilder;
     /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
     ///
     /// let cmd = MpsseCmdBuilder::new().disable_3phase_data_clocking();
@@ -571,7 +499,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// use ftdi_mpsse::MpsseCmdBuilder;
+    /// use crate::mpsse::MpsseCmdBuilder;
     /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
     ///
     /// let cmd = MpsseCmdBuilder::new().enable_3phase_data_clocking();
@@ -617,7 +545,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// use ftdi_mpsse::MpsseCmdBuilder;
+    /// use crate::mpsse::MpsseCmdBuilder;
     /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
     ///
     /// let cmd = MpsseCmdBuilder::new()
@@ -656,7 +584,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// use ftdi_mpsse::MpsseCmdBuilder;
+    /// use crate::mpsse::MpsseCmdBuilder;
     /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
     ///
     /// let cmd = MpsseCmdBuilder::new()
@@ -680,7 +608,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// use ftdi_mpsse::MpsseCmdBuilder;
+    /// use crate::mpsse::MpsseCmdBuilder;
     /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
     ///
     /// let cmd = MpsseCmdBuilder::new().gpio_lower().send_immediate();
@@ -707,7 +635,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// use ftdi_mpsse::MpsseCmdBuilder;
+    /// use crate::mpsse::MpsseCmdBuilder;
     /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
     ///
     /// let cmd = MpsseCmdBuilder::new().gpio_upper().send_immediate();
@@ -732,7 +660,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```
-    /// use ftdi_mpsse::MpsseCmdBuilder;
+    /// use crate::mpsse::MpsseCmdBuilder;
     ///
     /// let cmd = MpsseCmdBuilder::new()
     ///     .set_gpio_upper(0xFF, 0xFF)
@@ -749,7 +677,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```
-    /// use ftdi_mpsse::{ClockData, MpsseCmdBuilder};
+    /// use crate::mpsse::{ClockData, MpsseCmdBuilder};
     ///
     /// // Assume a "chip ready" signal is connected to GPIOL1. This signal is pulled high
     /// // shortly after AD3 (chip select) is pulled low. Data will not be clocked out until
@@ -771,7 +699,7 @@ impl MpsseCmdBuilder {
     /// # Example
     ///
     /// ```
-    /// use ftdi_mpsse::{ClockData, MpsseCmdBuilder};
+    /// use crate::mpsse::{ClockData, MpsseCmdBuilder};
     ///
     /// // Assume a "chip ready" signal is connected to GPIOL1. This signal is pulled low
     /// // shortly after AD3 (chip select) is pulled low. Data will not be clocked out until
@@ -885,7 +813,7 @@ impl MpsseCmdBuilder {
     ///
     /// * `mode` - Bit clocking mode.
     /// * `len` - Number of bits to clock in.
-    ///           This will panic for values greater than 8.
+    ///   This will panic for values greater than 8.
     pub fn clock_bits(mut self, mode: ClockBits, data: u8, mut len: u8) -> Self {
         assert!(len <= 8, "data length cannot exceed 8");
         len = match len.checked_sub(1) {
@@ -904,7 +832,7 @@ impl MpsseCmdBuilder {
     /// * `data` - TMS bits.
     /// * `tdi` - Value to place on TDI while clocking.
     /// * `len` - Number of bits to clock out.
-    ///           This will panic for values greater than 7.
+    ///   This will panic for values greater than 7.
     pub fn clock_tms_out(
         mut self,
         mode: ClockTMSOut,
@@ -932,7 +860,7 @@ impl MpsseCmdBuilder {
     /// * `data` - TMS bits.
     /// * `tdi` - Value to place on TDI while clocking.
     /// * `len` - Number of bits to clock out.
-    ///           This will panic for values greater than 7.
+    ///   This will panic for values greater than 7.
     pub fn clock_tms(mut self, mode: ClockTMS, mut data: u8, tdi: bool, mut len: u8) -> Self {
         assert!(len <= 7, "data length cannot exceed 7");
         len = match len.checked_sub(1) {

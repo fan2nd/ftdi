@@ -1,7 +1,7 @@
-use crate::error::Error;
-use crate::gpio::Pin;
-use crate::{BitOrder, FtInner, PinUse};
-use ftdi_mpsse::{ClockData, ClockDataIn, ClockDataOut, MpsseCmdBuilder, MpsseCmdExecutor};
+use crate::ftdaye::FtdiError;
+use crate::mpsse::{ClockData, ClockDataIn, ClockDataOut, MpsseCmdBuilder};
+use crate::{BitOrder, FtMpsse, Pin, PinUse};
+use eh1::spi::{Error, ErrorKind, ErrorType, SpiBus};
 use std::sync::{Arc, Mutex};
 
 /// FTDI SPI polarity.
@@ -27,15 +27,14 @@ pub struct SpiCommond {
 /// This is created by calling [`FtHal::spi`].
 ///
 /// [`FtHal::spi`]: crate::FtHal::spi
-#[derive(Debug)]
-pub struct Spi<Device: MpsseCmdExecutor> {
+pub struct Spi {
     /// Parent FTDI device.
-    mtx: Arc<Mutex<FtInner<Device>>>,
+    mtx: Arc<Mutex<FtMpsse>>,
     /// SPI polarity
     cmd: SpiCommond,
 }
 
-impl<Device: MpsseCmdExecutor> Drop for Spi<Device> {
+impl Drop for Spi {
     fn drop(&mut self) {
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.free_pin(Pin::Lower(0));
@@ -44,13 +43,8 @@ impl<Device: MpsseCmdExecutor> Drop for Spi<Device> {
     }
 }
 
-impl<Device, E> Spi<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
-    pub(crate) fn new(mtx: Arc<Mutex<FtInner<Device>>>) -> Result<Spi<Device>, Error<E>> {
+impl Spi {
+    pub fn new(mtx: Arc<Mutex<FtMpsse>>) -> Result<Spi, FtdiError> {
         {
             let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
             lock.alloc_pin(Pin::Lower(0), PinUse::Spi);
@@ -66,7 +60,7 @@ where
             let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
                 .set_gpio_lower(lock.lower.value, lock.lower.direction)
                 .send_immediate();
-            lock.ft.send(cmd.as_slice())?;
+            lock.ft.write_read(cmd.as_slice(), &mut [])?;
         }
         let cmd = SpiCommond {
             read_write: ClockData::MsbPosIn,
@@ -76,7 +70,7 @@ where
         Ok(Spi { mtx, cmd })
     }
     /// set spi mode and bitorder
-    pub fn set_mode(&mut self, mode: eh1::spi::Mode, order: BitOrder) -> Result<(), Error<E>> {
+    pub fn set_mode(&mut self, mode: eh1::spi::Mode, order: BitOrder) -> Result<(), FtdiError> {
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         // set SCK polarity
         match mode.polarity {
@@ -86,7 +80,7 @@ where
         let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
             .set_gpio_lower(lock.lower.value, lock.lower.direction)
             .send_immediate();
-        lock.ft.send(cmd.as_slice())?;
+        lock.ft.write_read(cmd.as_slice(), &mut [])?;
 
         self.cmd = match (mode, order) {
             (eh1::spi::MODE_0 | eh1::spi::MODE_3, BitOrder::Lsb) => SpiCommond {
@@ -114,50 +108,35 @@ where
     }
 }
 
-impl<E> eh1::spi::Error for Error<E>
-where
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
-    fn kind(&self) -> eh1::spi::ErrorKind {
-        eh1::spi::ErrorKind::Other
+impl Error for FtdiError {
+    fn kind(&self) -> ErrorKind {
+        ErrorKind::Other
     }
 }
 
-impl<Device, E> eh1::spi::ErrorType for Spi<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
-    type Error = Error<E>;
+impl ErrorType for Spi {
+    type Error = FtdiError;
 }
 
-impl<Device, E> eh1::spi::SpiBus<u8> for Spi<Device>
-where
-    Device: MpsseCmdExecutor<Error = E>,
-    E: std::error::Error,
-    Error<E>: From<E>,
-{
+impl SpiBus<u8> for Spi {
     fn read(&mut self, words: &mut [u8]) -> Result<(), Self::Error> {
         let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
             .clock_data_in(self.cmd.read, words.len())
             .send_immediate();
 
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
-        lock.ft.send(cmd.as_slice())?;
-        lock.ft.recv(words)?;
+        lock.ft.write_read(cmd.as_slice(), words)?;
 
         Ok(())
     }
 
-    fn write(&mut self, words: &[u8]) -> Result<(), Error<E>> {
+    fn write(&mut self, words: &[u8]) -> Result<(), Self::Error> {
         let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
             .clock_data_out(self.cmd.write, words)
             .send_immediate();
 
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
-        lock.ft.send(cmd.as_slice())?;
+        lock.ft.write_read(cmd.as_slice(), &mut [])?;
 
         Ok(())
     }
@@ -166,33 +145,25 @@ where
         Ok(())
     }
 
-    fn transfer_in_place(&mut self, words: &mut [u8]) -> Result<(), Error<E>> {
+    fn transfer_in_place(&mut self, words: &mut [u8]) -> Result<(), Self::Error> {
         let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
             .clock_data(self.cmd.read_write, words)
             .send_immediate();
 
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
 
-        lock.ft.send(cmd.as_slice())?;
-        lock.ft.recv(words)?;
+        lock.ft.write_read(cmd.as_slice(), words)?;
 
         Ok(())
     }
 
-    fn transfer(&mut self, read: &mut [u8], write: &[u8]) -> Result<(), Error<E>> {
+    fn transfer(&mut self, read: &mut [u8], write: &[u8]) -> Result<(), Self::Error> {
         let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
             .clock_data(self.cmd.read_write, write)
             .send_immediate();
 
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
-        lock.ft.send(cmd.as_slice())?;
-        lock.ft.recv(read)?;
-
-        let remain: usize = write.len().saturating_sub(read.len());
-        if remain != 0 {
-            let mut remain_buf: Vec<u8> = vec![0; remain];
-            lock.ft.recv(&mut remain_buf)?;
-        }
+        lock.ft.write_read(cmd.as_slice(), read)?;
 
         Ok(())
     }
