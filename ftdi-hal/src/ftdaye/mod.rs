@@ -197,7 +197,8 @@ impl FtdiContext {
                     .map_err(std::io::Error::from)?;
                 if result.len() > 2 {
                     let (_status, data) = result.split_at(2);
-                    let (read_buf, _) = read.split_at_mut(read_len);
+                    let (_, read_buf) = read.split_at_mut(read_len);
+                    let (read_buf, _) = read_buf.split_at_mut(data.len());
                     read_buf.copy_from_slice(data);
                     read_len += data.len()
                 }
@@ -206,9 +207,7 @@ impl FtdiContext {
         };
         let rt = tokio::runtime::Runtime::new()?;
         let result = rt
-            .block_on(timeout(Duration::from_secs(10), async {
-                join!(write, read)
-            }))
+            .block_on(async { timeout(Duration::from_secs(1), async { join!(write, read) }).await })
             .map_err(|_| FtdiError::Other("timeout".into()))?;
         if result.0.is_err() {
             result.0

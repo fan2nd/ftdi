@@ -171,18 +171,12 @@ impl I2c {
                         if idx == buffer.len() - 1 {
                             // NMAK
                             mpsse_cmd = mpsse_cmd
-                                .set_gpio_lower(
-                                    lock.lower.value,
-                                    SCL | SDA | lock.lower.direction,
-                                )
+                                .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
                                 .clock_bits_out(BITS_OUT, 0x80, 1)
                         } else {
                             // MAK
                             mpsse_cmd = mpsse_cmd
-                                .set_gpio_lower(
-                                    lock.lower.value,
-                                    SCL | SDA | lock.lower.direction,
-                                )
+                                .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
                                 .clock_bits_out(BITS_OUT, 0x00, 1)
                         }
                     }
@@ -257,8 +251,7 @@ impl I2c {
         let mut mpsse_cmd: MpsseCmdBuilder = MpsseCmdBuilder::new();
         // SP
         for _ in 0..self.start_stop_cmds {
-            mpsse_cmd =
-                mpsse_cmd.set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
+            mpsse_cmd = mpsse_cmd.set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
         }
         for _ in 0..self.start_stop_cmds {
             mpsse_cmd =

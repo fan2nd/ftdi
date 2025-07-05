@@ -1,3 +1,5 @@
+use nusb::DeviceInfo;
+
 use crate::ftdaye::ChipType;
 /// Known properties associated to particular FTDI chip types.
 
@@ -59,3 +61,15 @@ static FTDI_COMPAT_DEVICES: &[FtdiDevice] = &[
         fallback_chip_type: ChipType::FT2232H,
     },
 ];
+
+pub fn list_all_device() -> Vec<DeviceInfo> {
+    fn id_match(info: &DeviceInfo) -> bool {
+        for i in FTDI_COMPAT_DEVICES {
+            if (info.vendor_id(), info.product_id()) == i.id {
+                return true;
+            }
+        }
+        false
+    }
+    nusb::list_devices().unwrap().filter(id_match).collect()
+}

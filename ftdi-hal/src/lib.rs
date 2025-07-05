@@ -153,15 +153,18 @@ pub use eh1;
 mod ftdaye;
 mod gpio;
 mod i2c;
+mod jtag;
 mod list;
 mod mpsse;
 mod spi;
 
+pub use crate::ftdaye::Interface;
+use crate::ftdaye::{ChipType, FtdiContext, FtdiError};
 pub use gpio::{InputPin, OutputPin};
 pub use i2c::I2c;
+pub use jtag::SoftJtag;
+pub use list::list_all_device;
 pub use spi::Spi;
-
-use crate::ftdaye::{ChipType, FtdiContext, FtdiError, Interface};
 
 /// Order
 #[derive(Debug, Clone, Copy)]
@@ -182,6 +185,7 @@ pub enum Pin {
 enum PinUse {
     I2c,
     Spi,
+    Jtag,
     Output,
     Input,
 }
