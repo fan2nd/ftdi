@@ -9,13 +9,7 @@ use std::sync::{Arc, Mutex};
 /// This is a helper type to support multiple embedded-hal versions simultaneously.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpiCommond {
-    /// MPSSE command used to clock data in and out simultaneously.
-    ///
-    /// This is set by [`Spi::set_clock_polarity`].
-    read_write: ClockData,
-    /// MPSSE command used to clock data out.
-    ///
-    /// This is set by [`Spi::set_clock_polarity`].
+    write_read: ClockData,
     read: ClockDataIn,
     write: ClockDataOut,
 }
@@ -53,9 +47,9 @@ impl Spi {
 
             // clear direction of first 3 pins
             lock.lower.direction &= !0x07;
-            // set SCK (AD0) and MOSI (AD1) as output pins
+            // set SCK(AD0) and MOSI (AD1) as output pins
             lock.lower.direction |= 0x03;
-            // set GPIO pins to new state
+            // set SCK(AD0) to 1
             lock.lower.value |= 0x01;
             let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
                 .set_gpio_lower(lock.lower.value, lock.lower.direction)
@@ -66,7 +60,7 @@ impl Spi {
             lock.ft.write_read(cmd.as_slice(), &mut [])?;
         }
         let cmd = SpiCommond {
-            read_write: ClockData::MsbPosIn,
+            write_read: ClockData::MsbPosIn,
             read: ClockDataIn::MsbPos,
             write: ClockDataOut::MsbNeg,
         };
@@ -77,8 +71,8 @@ impl Spi {
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         // set SCK polarity
         match mode.polarity {
-            eh1::spi::Polarity::IdleLow => lock.lower.value &= 0xFE,
-            eh1::spi::Polarity::IdleHigh => lock.lower.value |= 0x01,
+            eh1::spi::Polarity::IdleLow => lock.lower.value &= 0xFE, // set SCK(AD0) to 0
+            eh1::spi::Polarity::IdleHigh => lock.lower.value |= 0x01, // set SCK(AD0) to 1
         }
         let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
             .set_gpio_lower(lock.lower.value, lock.lower.direction)
@@ -87,22 +81,22 @@ impl Spi {
 
         self.cmd = match (mode, order) {
             (eh1::spi::MODE_0 | eh1::spi::MODE_3, BitOrder::Lsb) => SpiCommond {
-                read_write: ClockData::LsbPosIn,
+                write_read: ClockData::LsbPosIn,
                 read: ClockDataIn::LsbPos,
                 write: ClockDataOut::LsbNeg,
             },
             (eh1::spi::MODE_0 | eh1::spi::MODE_3, BitOrder::Msb) => SpiCommond {
-                read_write: ClockData::MsbPosIn,
+                write_read: ClockData::MsbPosIn,
                 read: ClockDataIn::MsbPos,
                 write: ClockDataOut::MsbNeg,
             },
             (eh1::spi::MODE_1 | eh1::spi::MODE_2, BitOrder::Lsb) => SpiCommond {
-                read_write: ClockData::LsbNegIn,
+                write_read: ClockData::LsbNegIn,
                 read: ClockDataIn::LsbNeg,
                 write: ClockDataOut::LsbPos,
             },
             (eh1::spi::MODE_1 | eh1::spi::MODE_2, BitOrder::Msb) => SpiCommond {
-                read_write: ClockData::MsbNegIn,
+                write_read: ClockData::MsbNegIn,
                 read: ClockDataIn::MsbNeg,
                 write: ClockDataOut::MsbPos,
             },
@@ -150,7 +144,7 @@ impl SpiBus<u8> for Spi {
 
     fn transfer_in_place(&mut self, words: &mut [u8]) -> Result<(), Self::Error> {
         let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
-            .clock_data(self.cmd.read_write, words)
+            .clock_data(self.cmd.write_read, words)
             .send_immediate();
 
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
@@ -162,7 +156,7 @@ impl SpiBus<u8> for Spi {
 
     fn transfer(&mut self, read: &mut [u8], write: &[u8]) -> Result<(), Self::Error> {
         let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
-            .clock_data(self.cmd.read_write, write)
+            .clock_data(self.cmd.write_read, write)
             .send_immediate();
 
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
