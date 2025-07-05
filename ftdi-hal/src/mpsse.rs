@@ -50,6 +50,12 @@ pub enum MpsseCmd {
     // EnableDriveOnlyZero = 0x9E,
 }
 
+impl From<MpsseCmd> for u8 {
+    fn from(value: MpsseCmd) -> Self {
+        value as u8
+    }
+}
+
 /// Modes for clocking data out of the FTDI device.
 ///
 /// This is an argument to the [`clock_data_out`] method.
@@ -266,12 +272,6 @@ pub enum ClockBits {
 
 impl From<ClockBits> for u8 {
     fn from(value: ClockBits) -> u8 {
-        value as u8
-    }
-}
-
-impl From<MpsseCmd> for u8 {
-    fn from(value: MpsseCmd) -> Self {
         value as u8
     }
 }
@@ -744,7 +744,7 @@ impl MpsseCmdBuilder {
     ///
     /// * `mode` - Data clocking mode.
     /// * `len` - Number of bytes to clock in.
-    ///           This will panic for values greater than `u16::MAX + 1`.
+    ///   This will panic for values greater than `u16::MAX + 1`.
     pub fn clock_data_in(mut self, mode: ClockDataIn, mut len: usize) -> Self {
         assert!(len <= 65536, "data length cannot exceed u16::MAX + 1");
         len = match len.checked_sub(1) {
@@ -779,7 +779,7 @@ impl MpsseCmdBuilder {
     /// * `mode` - Bit clocking mode.
     /// * `data` - Data bits.
     /// * `len` - Number of bits to clock out.
-    ///           This will panic for values greater than 8.
+    ///   This will panic for values greater than 8.
     pub fn clock_bits_out(mut self, mode: ClockBitsOut, data: u8, mut len: u8) -> Self {
         assert!(len <= 8, "data length cannot exceed 8");
         len = match len.checked_sub(1) {
@@ -796,7 +796,7 @@ impl MpsseCmdBuilder {
     ///
     /// * `mode` - Bit clocking mode.
     /// * `len` - Number of bits to clock in.
-    ///           This will panic for values greater than 8.
+    ///   This will panic for values greater than 8.
     pub fn clock_bits_in(mut self, mode: ClockBitsIn, mut len: u8) -> Self {
         assert!(len <= 8, "data length cannot exceed 8");
         len = match len.checked_sub(1) {

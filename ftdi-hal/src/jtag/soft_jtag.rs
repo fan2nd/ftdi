@@ -19,10 +19,10 @@ impl SoftJtag {
         tms: Pin,
     ) -> Result<Self, FtdiError> {
         let tck = OutputPin::new(mtx.clone(), tck)?;
-        tck.set(false)?;
+        tck.set(false)?; // tck闲置状态为低
         Ok(Self {
             mtx: mtx.clone(),
-            tck: tck,
+            tck,
             tdi: OutputPin::new(mtx.clone(), tdi)?,
             tdo: InputPin::new(mtx.clone(), tdo)?,
             tms: OutputPin::new(mtx.clone(), tms)?,
@@ -50,10 +50,10 @@ impl SoftJtag {
     }
 
     // 辅助函数：产生时钟边沿并读取TDO
-    fn clock_tck(&mut self, tms_val: bool, tdi_val: bool) -> Result<bool, FtdiError> {
+    fn clock_tck(&self, tms_val: bool, tdi_val: bool) -> Result<bool, FtdiError> {
         self.tms.set(tms_val)?;
         self.tdi.set(tdi_val)?;
-        // self.tck.set(false)?; tck闲置状态为低
+        // self.tck.set(false)?;
         self.tck.set(true)?; // 上升沿采样
         let tdo_val = self.tdo.get()?;
         self.tck.set(false)?; // 回到低电平
@@ -61,7 +61,7 @@ impl SoftJtag {
     }
 
     // 辅助函数：移位数据位
-    fn shift_bits(&mut self, bits: &[bool], last: bool) -> Result<Vec<bool>, FtdiError> {
+    fn shift_bits(&self, bits: &[bool], last: bool) -> Result<Vec<bool>, FtdiError> {
         let mut result = Vec::new();
         for (i, &bit) in bits.iter().enumerate() {
             let tms = last && (i == bits.len() - 1);
@@ -71,7 +71,7 @@ impl SoftJtag {
     }
 
     // 将JTAG状态机复位到Run-Test/Idle状态
-    fn goto_idle(&mut self) -> Result<(), FtdiError> {
+    fn goto_idle(&self) -> Result<(), FtdiError> {
         // 发送5个TMS=1复位状态机 (Test-Logic-Reset)
         for _ in 0..5 {
             self.clock_tck(true, true)?;
@@ -85,7 +85,7 @@ impl SoftJtag {
 
     // 写入JTAG寄存器
     pub fn write_reg(
-        &mut self,
+        &self,
         ir: &[u8],
         irlen: usize,
         dr: &[u8],
@@ -132,12 +132,7 @@ impl SoftJtag {
     }
 
     // 读取JTAG寄存器
-    pub fn read_reg(
-        &mut self,
-        ir: &[u8],
-        irlen: usize,
-        drlen: usize,
-    ) -> Result<Vec<u8>, FtdiError> {
+    pub fn read_reg(&self, ir: &[u8], irlen: usize, drlen: usize) -> Result<Vec<u8>, FtdiError> {
         self.goto_idle()?;
 
         // 进入Shift-IR状态
@@ -185,8 +180,8 @@ impl SoftJtag {
         Ok(result)
     }
 
-    // 扫描JTAG链上的设备IDCODE
-    pub fn scan(&mut self) -> Result<Vec<u32>, FtdiError> {
+    // 使用指定TDI值扫描JTAG链上的设备IDCODE
+    pub fn scan_with(&self, tdi_val: bool) -> Result<Vec<Option<u32>>, FtdiError> {
         const ID_LEN: usize = 32;
         self.goto_idle()?;
 
@@ -205,14 +200,18 @@ impl SoftJtag {
         while consecutive_ones < ID_LEN && consecutive_zeros < ID_LEN {
             // 每32位保存一个IDCODE
             if bit_count == ID_LEN {
-                idcodes.push(current_id);
+                idcodes.push(Some(current_id));
                 bit_count = 0;
             }
 
-            let tdo_val = self.clock_tck(false, false)?; // 移入0
-
-            current_id = (current_id >> 1) | if tdo_val { 1 << (u32::BITS - 1) } else { 0 };
-            bit_count += 1;
+            let tdo_val = self.clock_tck(false, tdi_val)?; // 移入tdi_val
+            // bypass
+            if bit_count == 0 && !tdo_val {
+                idcodes.push(None);
+            } else {
+                current_id = (current_id >> 1) | if tdo_val { 0x8000_0000 } else { 0 };
+                bit_count += 1;
+            }
 
             if tdo_val {
                 consecutive_ones += 1;
@@ -229,5 +228,16 @@ impl SoftJtag {
         self.clock_tck(false, false)?; // 返回Run-Test/Idle
 
         Ok(idcodes)
+    }
+    // 扫描JTAG链上的设备IDCODE
+    pub fn scan(&self) -> Result<Vec<Option<u32>>, FtdiError> {
+        let scan0 = self.scan_with(false)?;
+        let scan1 = self.scan_with(true)?;
+        Ok(scan0
+            .into_iter()
+            .zip(scan1.into_iter())
+            .take_while(|(x, y)| x == y)
+            .map(|(x, _)| x)
+            .collect())
     }
 }
