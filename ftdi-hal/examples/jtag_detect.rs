@@ -1,6 +1,9 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 
-use ftdi_hal::{FtMpsse, Interface, Pin, SoftJtag, list_all_device};
+use ftdi_hal::{FtMpsse, Interface, SoftJtag, list_all_device};
 use itertools::Itertools;
 
 fn main() {
@@ -8,17 +11,24 @@ fn main() {
     assert!(!devices.is_empty(), "Not found Ftdi devices");
     let mpsse = FtMpsse::open(devices[0].clone(), Interface::A, 0).unwrap();
     let mtx = Arc::new(Mutex::new(mpsse));
-    let pins = [Pin::Lower(0), Pin::Lower(1), Pin::Lower(2), Pin::Lower(3)];
+    let pins = [0, 1, 2, 3, 4, 5, 6, 7];
+    let now = Instant::now();
     for couple in pins.into_iter().permutations(4) {
-        println!(
-            "testing: tck:{:?},tdi:{:?},tdo:{:?},tms:{:?}",
-            couple[0], couple[1], couple[2], couple[3],
-        );
         let softjtag =
             SoftJtag::new(mtx.clone(), couple[0], couple[1], couple[2], couple[3]).unwrap();
-        let ids = softjtag.scan_with(true).unwrap();
-        if ids.iter().any(|x| x.is_some()) {
-            println!("!!!!!! Found Devices:{ids:#x?}");
+        let ids_scan1 = softjtag.scan_with(1).unwrap();
+        if ids_scan1.iter().any(Option::is_some) {
+            print!(
+                "testing: [tck:{:?},tdi:{:?},tdo:{:?},tms:{:?}]",
+                couple[0], couple[1], couple[2], couple[3],
+            );
+            let ids_scan0 = softjtag.scan_with(0).unwrap();
+            if ids_scan0.len() == ids_scan1.len() {
+                println!("!!!!!! tdi is not correct");
+            } else {
+                println!("!!!!!! Found Devices:{ids_scan1:x?}");
+            }
         }
     }
+    println!("Finish Detect Using {:?}", now.elapsed());
 }

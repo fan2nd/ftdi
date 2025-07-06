@@ -258,12 +258,18 @@ impl FtMpsse {
 
         let handle = handle.detach_and_claim_interface(interface as u8 - 1)?;
 
-        Ok(Self {
+        let mut this = Self {
             ft: FtdiContext::new(handle, interface, max_packet_size).into_mpsse(mask)?,
             chip_type,
             lower: Default::default(),
             upper: Default::default(),
-        })
+        };
+        let cmd = MpsseCmdBuilder::new()
+            .set_gpio_lower(this.lower.value, this.lower.direction)
+            .set_gpio_upper(this.upper.value, this.upper.direction)
+            .send_immediate();
+        this.write_read(cmd.as_slice(), &mut [])?;
+        Ok(this)
     }
     /// Write mpsse command and read response
     fn write_read(&mut self, write: &[u8], read: &mut [u8]) -> Result<(), FtdiError> {
