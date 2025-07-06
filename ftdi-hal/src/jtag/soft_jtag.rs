@@ -1,5 +1,8 @@
 use crate::{FtMpsse, OutputPin, Pin, PinUse, ftdaye::FtdiError, mpsse::MpsseCmdBuilder};
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    u32,
+};
 
 pub struct SoftJtag {
     mtx: Arc<Mutex<FtMpsse>>,
@@ -144,33 +147,31 @@ impl SoftJtag {
         let mut current_id = 0u32;
         let mut bit_count = 0;
         let mut consecutive_zeros = 0;
-        let mut consecutive_ones = 0;
 
         'outer: loop {
             let tdos = self.clock_tcks(0, tdi_val, ID_LEN)?; // 移入tdi_val
             for tdo_val in tdos {
-                // 每32位保存一个IDCODE
-                if bit_count == ID_LEN {
-                    idcodes.push(Some(current_id));
-                    bit_count = 0;
-                }
                 // bypass
                 if bit_count == 0 && !tdo_val {
                     idcodes.push(None);
+                    consecutive_zeros += 1;
                 } else {
                     current_id = (current_id >> 1) | if tdo_val { 0x8000_0000 } else { 0 };
                     bit_count += 1;
-                }
-                // 连续32个0或者连续32个1退出
-                if tdo_val {
-                    consecutive_ones += 1;
                     consecutive_zeros = 0;
-                } else {
-                    consecutive_zeros += 1;
-                    consecutive_ones = 0;
                 }
-                if consecutive_ones >= ID_LEN || consecutive_zeros >= ID_LEN {
+                // 连续32个0退出
+                if consecutive_zeros == ID_LEN {
                     break 'outer;
+                }
+                // 每32位保存一个IDCODE
+                if bit_count == ID_LEN {
+                    // 连续32个1退出
+                    if current_id == u32::MAX {
+                        break 'outer;
+                    }
+                    idcodes.push(Some(current_id));
+                    bit_count = 0;
                 }
             }
         }
