@@ -55,7 +55,7 @@ impl I2c {
             // pins are set as input (tri-stated) in idle mode
 
             // set GPIO pins to new state
-            let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
+            let cmd = MpsseCmdBuilder::new()
                 .set_gpio_lower(lock.lower.value, lock.lower.direction)
                 .disable_adaptive_data_clocking()
                 .disable_loopback()

@@ -157,6 +157,7 @@ mod jtag;
 mod list;
 mod mpsse;
 mod spi;
+mod swd;
 
 pub use crate::ftdaye::Interface;
 use crate::ftdaye::{ChipType, FtdiContext, FtdiError};
@@ -165,6 +166,7 @@ pub use i2c::I2c;
 pub use jtag::SoftJtag;
 pub use list::list_all_device;
 pub use spi::Spi;
+pub use swd::{Swd, SwdOp, SwdPort};
 
 /// Order
 #[derive(Debug, Clone, Copy)]
@@ -183,11 +185,12 @@ pub enum Pin {
 /// State tracker for each pin on the FTDI chip.
 #[derive(Debug, Clone, Copy)]
 enum PinUse {
+    Output,
+    Input,
     I2c,
     Spi,
     Jtag,
-    Output,
-    Input,
+    Swd,
 }
 #[derive(Debug, Default)]
 struct GpioByte {

@@ -157,9 +157,7 @@ impl InputPin {
 
         Ok((buffer[0] & self.mask()) != 0)
     }
-}
 
-impl InputPin {
     /// Convert the GPIO pin index to a pin mask
     pub(crate) fn mask(&self) -> u8 {
         let idx = match self.pin {

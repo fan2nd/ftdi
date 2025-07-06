@@ -235,7 +235,7 @@ impl SoftJtag {
         let scan1 = self.scan_with(true)?;
         Ok(scan0
             .into_iter()
-            .zip(scan1.into_iter())
+            .zip(scan1)
             .take_while(|(x, y)| x == y)
             .map(|(x, _)| x)
             .collect())

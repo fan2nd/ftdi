@@ -51,7 +51,7 @@ impl Spi {
             lock.lower.direction |= 0x03;
             // set SCK(AD0) to 1
             lock.lower.value |= 0x01;
-            let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
+            let cmd = MpsseCmdBuilder::new()
                 .set_gpio_lower(lock.lower.value, lock.lower.direction)
                 .disable_adaptive_data_clocking()
                 .disable_loopback()
