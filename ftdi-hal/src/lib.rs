@@ -160,7 +160,10 @@ mod spi;
 mod swd;
 
 pub use crate::ftdaye::Interface;
-use crate::ftdaye::{ChipType, FtdiContext, FtdiError};
+use crate::{
+    ftdaye::{ChipType, FtdiContext, FtdiError},
+    mpsse::MpsseCmdBuilder,
+};
 pub use gpio::{InputPin, OutputPin};
 pub use i2c::I2c;
 pub use jtag::SoftJtag;
@@ -191,6 +194,12 @@ enum PinUse {
     Spi,
     Jtag,
     Swd,
+}
+/// State tracker for each pin on the FTDI chip.
+#[derive(Debug, Clone, Copy)]
+enum PinDirection {
+    Input = 0,
+    Output = 1,
 }
 #[derive(Debug, Default)]
 struct GpioByte {
@@ -256,6 +265,10 @@ impl FtMpsse {
             upper: Default::default(),
         })
     }
+    /// Write mpsse command and read response
+    fn write_read(&mut self, write: &[u8], read: &mut [u8]) -> Result<(), FtdiError> {
+        self.ft.write_read(write, read)
+    }
     /// Allocate a pin for a specific use.
     fn alloc_pin(&mut self, pin: Pin, purpose: PinUse) {
         let (byte, idx) = match pin {
@@ -274,11 +287,27 @@ impl FtMpsse {
     }
     /// Allocate a pin for a specific use.
     fn free_pin(&mut self, pin: Pin) {
-        let (byte, idx) = match pin {
-            Pin::Lower(idx) => (&mut self.lower, idx),
-            Pin::Upper(idx) => (&mut self.upper, idx),
+        match pin {
+            Pin::Lower(idx) => {
+                assert!(idx < 8, "Pin index {idx} is out of range 0 - 7");
+                self.lower.pins[idx] = None;
+                self.lower.value &= !(1 << idx);
+                self.lower.direction &= !(1 << idx);
+                let cmd = MpsseCmdBuilder::new()
+                    .set_gpio_lower(self.lower.value, self.lower.direction)
+                    .send_immediate();
+                self.write_read(cmd.as_slice(), &mut []).unwrap();
+            }
+            Pin::Upper(idx) => {
+                assert!(idx < 8, "Pin index {idx} is out of range 0 - 7");
+                self.lower.pins[idx] = None;
+                self.upper.value &= !(1 << idx);
+                self.upper.direction &= !(1 << idx);
+                let cmd = MpsseCmdBuilder::new()
+                    .set_gpio_lower(self.upper.value, self.upper.direction)
+                    .send_immediate();
+                self.write_read(cmd.as_slice(), &mut []).unwrap();
+            }
         };
-        assert!(idx < 8, "Pin index {idx} is out of range 0 - 7");
-        byte.pins[idx] = None
     }
 }

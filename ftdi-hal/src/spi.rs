@@ -57,7 +57,7 @@ impl Spi {
                 .disable_loopback()
                 .disable_3phase_data_clocking()
                 .send_immediate();
-            lock.ft.write_read(cmd.as_slice(), &mut [])?;
+            lock.write_read(cmd.as_slice(), &mut [])?;
         }
         let cmd = SpiCommond {
             write_read: ClockData::MsbPosIn,
@@ -77,7 +77,7 @@ impl Spi {
         let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
             .set_gpio_lower(lock.lower.value, lock.lower.direction)
             .send_immediate();
-        lock.ft.write_read(cmd.as_slice(), &mut [])?;
+        lock.write_read(cmd.as_slice(), &mut [])?;
 
         self.cmd = match (mode, order) {
             (eh1::spi::MODE_0 | eh1::spi::MODE_3, BitOrder::Lsb) => SpiCommond {
@@ -122,7 +122,7 @@ impl SpiBus<u8> for Spi {
             .send_immediate();
 
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
-        lock.ft.write_read(cmd.as_slice(), words)?;
+        lock.write_read(cmd.as_slice(), words)?;
 
         Ok(())
     }
@@ -133,7 +133,7 @@ impl SpiBus<u8> for Spi {
             .send_immediate();
 
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
-        lock.ft.write_read(cmd.as_slice(), &mut [])?;
+        lock.write_read(cmd.as_slice(), &mut [])?;
 
         Ok(())
     }
@@ -149,7 +149,7 @@ impl SpiBus<u8> for Spi {
 
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
 
-        lock.ft.write_read(cmd.as_slice(), words)?;
+        lock.write_read(cmd.as_slice(), words)?;
 
         Ok(())
     }
@@ -160,7 +160,7 @@ impl SpiBus<u8> for Spi {
             .send_immediate();
 
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
-        lock.ft.write_read(cmd.as_slice(), read)?;
+        lock.write_read(cmd.as_slice(), read)?;
 
         Ok(())
     }

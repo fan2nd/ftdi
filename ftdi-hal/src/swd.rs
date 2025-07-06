@@ -56,7 +56,7 @@ impl Swd {
                 .disable_loopback()
                 .enable_3phase_data_clocking()
                 .send_immediate();
-            lock.ft.write_read(cmd.as_slice(), &mut [])?;
+            lock.write_read(cmd.as_slice(), &mut [])?;
         }
         Ok(Self { mtx })
     }
@@ -74,7 +74,7 @@ impl Swd {
             .clock_data_out(ClockDataOut::LsbPos, &ONES) // >50 ones (LSB first)
             .send_immediate();
 
-        lock.ft.write_read(cmd.as_slice(), &mut [])?;
+        lock.write_read(cmd.as_slice(), &mut [])?;
         Ok(())
     }
     /// Build SWD request packet (lsb 8 bits)
@@ -106,7 +106,7 @@ impl Swd {
             .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Output2Input
             .clock_bits_in(ClockBitsIn::LsbNeg, 3) // Read ACK (3 bits)
             .send_immediate();
-        lock.ft.write_read(cmd.as_slice(), response)?;
+        lock.write_read(cmd.as_slice(), response)?;
 
         // Read ACK (3 bits)
         // 0..2	- 001:失败 010:等待 100:成功
@@ -115,7 +115,7 @@ impl Swd {
             let cmd = MpsseCmdBuilder::new()
                 .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Input2Output
                 .send_immediate();
-            lock.ft.write_read(cmd.as_slice(), response)?;
+            lock.write_read(cmd.as_slice(), response)?;
             match ack {
                 0b010 => return Err(FtdiError::Other("Swd ack wait".into())),
                 0b100 => return Err(FtdiError::Other("Swd ack fail".into())),
@@ -130,7 +130,7 @@ impl Swd {
             .clock_bits_in(ClockBitsIn::LsbNeg, 1) // 1-bit parity
             .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Input2Output
             .send_immediate();
-        lock.ft.write_read(cmd.as_slice(), &mut data)?;
+        lock.write_read(cmd.as_slice(), &mut data)?;
 
         // Parse the data (LSB first)
         let value = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
@@ -155,7 +155,7 @@ impl Swd {
             .clock_bits_in(ClockBitsIn::LsbNeg, 3) // Read ACK (3 bits)
             .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Input2Output
             .send_immediate();
-        lock.ft.write_read(cmd.as_slice(), response)?;
+        lock.write_read(cmd.as_slice(), response)?;
 
         // Read ACK (3 bits)
         // 0..2	- 001:失败 010:等待 100:成功
@@ -178,7 +178,7 @@ impl Swd {
             .clock_data_out(ClockDataOut::LsbPos, &data)
             .clock_bits_out(ClockBitsOut::LsbPos, parity, 1)
             .send_immediate();
-        lock.ft.write_read(cmd.as_slice(), &mut [])?;
+        lock.write_read(cmd.as_slice(), &mut [])?;
         Ok(())
     }
 }

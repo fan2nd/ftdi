@@ -61,7 +61,7 @@ impl I2c {
                 .disable_loopback()
                 .enable_3phase_data_clocking()
                 .send_immediate();
-            lock.ft.write_read(cmd.as_slice(), &mut [])?;
+            lock.write_read(cmd.as_slice(), &mut [])?;
         }
 
         Ok(I2c {
@@ -117,7 +117,7 @@ impl I2c {
             mpsse_cmd =
                 mpsse_cmd.set_gpio_lower(lock.lower.value | SCL, SCL | SDA | lock.lower.direction)
         }
-        lock.ft.write_read(mpsse_cmd.as_slice(), &mut [])?;
+        lock.write_read(mpsse_cmd.as_slice(), &mut [])?;
 
         let mut prev_op_was_a_read: bool = false;
         for (idx, operation) in operations.iter_mut().enumerate() {
@@ -157,7 +157,7 @@ impl I2c {
                             .send_immediate();
 
                         let mut ack_buf: [u8; 1] = [0; 1];
-                        lock.ft.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
+                        lock.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
                         if (ack_buf[0] & 0b1) != 0x00 {
                             return Err(ErrorKind::NoAcknowledge(NoAcknowledgeSource::Address));
                         }
@@ -180,7 +180,7 @@ impl I2c {
                                 .clock_bits_out(BITS_OUT, 0x00, 1)
                         }
                     }
-                    lock.ft.write_read(mpsse_cmd.as_slice(), &mut [])?;
+                    lock.write_read(mpsse_cmd.as_slice(), &mut [])?;
 
                     prev_op_was_a_read = true;
                 }
@@ -219,7 +219,7 @@ impl I2c {
                             .send_immediate();
 
                         let mut ack_buf: [u8; 1] = [0; 1];
-                        lock.ft.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
+                        lock.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
                         if (ack_buf[0] & 0b1) != 0x00 {
                             return Err(ErrorKind::NoAcknowledge(NoAcknowledgeSource::Address));
                         }
@@ -237,7 +237,7 @@ impl I2c {
                             .send_immediate();
 
                         let mut ack_buf: [u8; 1] = [0; 1];
-                        lock.ft.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
+                        lock.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
                         if (ack_buf[0] & 0b1) != 0x00 {
                             return Err(ErrorKind::NoAcknowledge(NoAcknowledgeSource::Data));
                         }
@@ -268,7 +268,7 @@ impl I2c {
         mpsse_cmd = mpsse_cmd
             .set_gpio_lower(lock.lower.value, lock.lower.direction)
             .send_immediate();
-        lock.ft.write_read(mpsse_cmd.as_slice(), &mut [])?;
+        lock.write_read(mpsse_cmd.as_slice(), &mut [])?;
 
         Ok(())
     }

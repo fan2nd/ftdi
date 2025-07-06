@@ -60,16 +60,6 @@ impl SoftJtag {
         Ok(tdo_val)
     }
 
-    // 辅助函数：移位数据位
-    fn shift_bits(&self, bits: &[bool], last: bool) -> Result<Vec<bool>, FtdiError> {
-        let mut result = Vec::new();
-        for (i, &bit) in bits.iter().enumerate() {
-            let tms = last && (i == bits.len() - 1);
-            result.push(self.clock_tck(tms, bit)?);
-        }
-        Ok(result)
-    }
-
     // 将JTAG状态机复位到Run-Test/Idle状态
     fn goto_idle(&self) -> Result<(), FtdiError> {
         // 发送5个TMS=1复位状态机 (Test-Logic-Reset)
@@ -81,103 +71,6 @@ impl SoftJtag {
         // 保持Run-Test/Idle (TMS=0)
         self.clock_tck(false, true)?;
         Ok(())
-    }
-
-    // 写入JTAG寄存器
-    pub fn write_reg(
-        &self,
-        ir: &[u8],
-        irlen: usize,
-        dr: &[u8],
-        drlen: usize,
-    ) -> Result<(), FtdiError> {
-        self.goto_idle()?;
-
-        // 进入Shift-IR状态
-        self.clock_tck(true, true)?; // Select-DR-Scan
-        self.clock_tck(true, true)?; // Select-IR-Scan
-        self.clock_tck(false, true)?; // Capture-IR
-        self.clock_tck(false, true)?; // Shift-IR
-
-        // 转换IR数据为bool切片并移位
-        let ir_bits: Vec<bool> = ir
-            .iter()
-            .flat_map(|&b| (0..8).rev().map(move |i| (b >> i) & 1 != 0))
-            .take(irlen)
-            .collect();
-        self.shift_bits(&ir_bits, true)?; // 移位IR（最后一位TMS=1）
-
-        // 退出IR移位状态
-        self.clock_tck(true, true)?; // Update-IR
-        self.clock_tck(false, true)?; // 返回Run-Test/Idle
-
-        // 进入Shift-DR状态
-        self.clock_tck(true, true)?; // Select-DR-Scan
-        self.clock_tck(false, true)?; // Capture-DR
-        self.clock_tck(false, true)?; // Shift-DR
-
-        // 转换DR数据为bool切片并移位
-        let dr_bits: Vec<bool> = dr
-            .iter()
-            .flat_map(|&b| (0..8).map(move |i| (b >> i) & 1 != 0))
-            .take(drlen)
-            .collect();
-        self.shift_bits(&dr_bits, true)?; // 移位DR（最后一位TMS=1）
-
-        // 退出DR移位状态
-        self.clock_tck(true, true)?; // Update-DR
-        self.clock_tck(false, true)?; // 返回Run-Test/Idle
-
-        Ok(())
-    }
-
-    // 读取JTAG寄存器
-    pub fn read_reg(&self, ir: &[u8], irlen: usize, drlen: usize) -> Result<Vec<u8>, FtdiError> {
-        self.goto_idle()?;
-
-        // 进入Shift-IR状态
-        self.clock_tck(true, true)?; // Select-DR-Scan
-        self.clock_tck(true, true)?; // Select-IR-Scan
-        self.clock_tck(false, true)?; // Capture-IR
-        self.clock_tck(false, true)?; // Shift-IR
-
-        // 移位IR指令
-        let ir_bits: Vec<bool> = ir
-            .iter()
-            .flat_map(|&b| (0..8).map(move |i| (b >> i) & 1 != 0))
-            .take(irlen)
-            .collect();
-        self.shift_bits(&ir_bits, true)?;
-
-        // 退出IR移位状态
-        self.clock_tck(true, true)?; // Update-IR
-        self.clock_tck(false, true)?; // 返回Run-Test/Idle
-
-        // 进入Shift-DR状态
-        self.clock_tck(true, true)?; // Select-DR-Scan
-        self.clock_tck(false, true)?; // Capture-DR
-        self.clock_tck(false, true)?; // Shift-DR
-
-        // 移位DR（移入0，读取数据）
-        let zeros = vec![false; drlen];
-        let dr_bits = self.shift_bits(&zeros, true)?;
-
-        // 退出DR移位状态
-        self.clock_tck(true, true)?; // Update-DR
-        self.clock_tck(false, true)?; // 返回Run-Test/Idle
-
-        // 将读取的位转换为字节
-        let mut result = Vec::new();
-        for chunk in dr_bits.chunks(8) {
-            let mut byte = 0u8;
-            for (i, &bit) in chunk.iter().enumerate() {
-                if bit {
-                    byte |= 1 << (7 - i);
-                }
-            }
-            result.push(byte);
-        }
-        Ok(result)
     }
 
     // 使用指定TDI值扫描JTAG链上的设备IDCODE

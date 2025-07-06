@@ -41,7 +41,7 @@ impl OutputPin {
                 Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
             }
             .send_immediate();
-            lock.ft.write_read(cmd.as_slice(), &mut [])?;
+            lock.write_read(cmd.as_slice(), &mut [])?;
         }
         Ok(OutputPin { mtx, pin })
     }
@@ -66,7 +66,7 @@ impl OutputPin {
             Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
         }
         .send_immediate();
-        lock.ft.write_read(cmd.as_slice(), &mut [])?;
+        lock.write_read(cmd.as_slice(), &mut [])?;
 
         Ok(())
     }
@@ -138,7 +138,7 @@ impl InputPin {
                 Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
             }
             .send_immediate();
-            lock.ft.write_read(cmd.as_slice(), &mut [])?;
+            lock.write_read(cmd.as_slice(), &mut [])?;
         }
         Ok(InputPin { mtx, pin })
     }
@@ -153,7 +153,7 @@ impl InputPin {
             Pin::Upper(_) => cmd.gpio_upper(),
         }
         .send_immediate();
-        lock.ft.write_read(cmd.as_slice(), &mut buffer)?;
+        lock.write_read(cmd.as_slice(), &mut buffer)?;
 
         Ok((buffer[0] & self.mask()) != 0)
     }
