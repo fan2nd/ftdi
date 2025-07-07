@@ -7,30 +7,38 @@ use ftdi_hal::{FtMpsse, Interface, JtagDetect, JtagScan, list_all_device};
 use itertools::Itertools;
 
 fn main() {
+    let now = Instant::now();
     let devices = list_all_device();
     assert!(!devices.is_empty(), "Not found Ftdi devices");
     let mpsse = FtMpsse::open(devices[0].clone(), Interface::A, 0).unwrap();
     let mtx = Arc::new(Mutex::new(mpsse));
     let pins = [0, 1, 2, 3, 4, 5, 6, 7];
     let mut notdi = Vec::new();
-    let now = Instant::now();
+    // find tdo
     for couple in pins.into_iter().permutations(2) {
         let tck = couple[0];
         let tms = couple[1];
         let jtag = JtagDetect::new(mtx.clone(), tck, tms).unwrap();
         let ids_scan = jtag.scan().unwrap();
         for tdo in 0..8 {
-            if tdo == tck | tms {
+            if !pins.contains(&tdo) {
+                continue;
+            }
+            if tdo == tck || tdo == tms {
                 continue;
             }
             if ids_scan[tdo].iter().any(Option::is_some) {
-                println!("tck:{},tms:{},tdo:{} maybe true", tck, tms, tdo);
+                println!("Pins:tck[{tck}],tdo[{tdo}],tms[{tms}] maybe true");
                 notdi.push((tck, tms, tdo));
             }
         }
     }
+    // find tdi
     for (tck, tms, tdo) in notdi {
         for tdi in 0..8 {
+            if !pins.contains(&tdi) {
+                continue;
+            }
             if tdi == tck || tdi == tms || tdi == tdo {
                 continue;
             }
