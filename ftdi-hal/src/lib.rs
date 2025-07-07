@@ -166,7 +166,7 @@ use crate::{
 };
 pub use gpio::{InputPin, OutputPin};
 pub use i2c::I2c;
-pub use jtag::{Jtag, JtagDetect, JtagScan};
+pub use jtag::{Jtag, JtagDetectTdi, JtagDetectTdo};
 pub use list::list_all_device;
 pub use spi::{Spi, SpiMode};
 pub use swd::{Swd, SwdOp, SwdPort};
@@ -187,12 +187,6 @@ enum PinUse {
     Jtag,
     JtagDetect,
     Swd,
-}
-/// State tracker for each pin on the FTDI chip.
-#[derive(Debug, Clone, Copy)]
-enum PinDirection {
-    Input = 0,
-    Output = 1,
 }
 #[derive(Debug, Default)]
 struct GpioByte {
@@ -235,7 +229,7 @@ impl FtMpsse {
         ) {
             // (0x400, _) | (0x200, "") => ChipType::Bm,
             // (0x200, _) => ChipType::Am,
-            // (0x500, _) => ChipType::FT2232C,
+            (0x500, _) => ChipType::FT2232C,
             // (0x600, _) => ChipType::R,
             (0x700, _) => ChipType::FT2232H,
             (0x800, _) => ChipType::FT4232H,
@@ -247,7 +241,9 @@ impl FtMpsse {
                 )));
             }
         };
-
+        if chip_type == ChipType::FT2232C {
+            log::warn!("{chip_type:?} not test!");
+        }
         if !chip_type.mpsse_list().contains(&interface) {
             return Err(FtdiError::Other(format!(
                 "{chip_type:?} do not has {interface:?}"

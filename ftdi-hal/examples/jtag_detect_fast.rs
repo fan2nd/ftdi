@@ -3,7 +3,7 @@ use std::{
     time::Instant,
 };
 
-use ftdi_hal::{FtMpsse, Interface, JtagDetect, JtagScan, list_all_device};
+use ftdi_hal::{FtMpsse, Interface, JtagDetectTdi, JtagDetectTdo, list_all_device};
 use itertools::Itertools;
 
 fn main() {
@@ -18,7 +18,7 @@ fn main() {
     for couple in pins.into_iter().permutations(2) {
         let tck = couple[0];
         let tms = couple[1];
-        let jtag = JtagDetect::new(mtx.clone(), tck, tms).unwrap();
+        let jtag = JtagDetectTdo::new(mtx.clone(), tck, tms).unwrap();
         let ids_scan = jtag.scan().unwrap();
         for tdo in 0..8 {
             if !pins.contains(&tdo) || tdo == tck || tdo == tms {
@@ -36,7 +36,7 @@ fn main() {
             if !pins.contains(&tdi) || tdi == tck || tdi == tms || tdi == tdo {
                 continue;
             }
-            let jtag = JtagScan::new(mtx.clone(), tck, tdi, tdo, tms).unwrap();
+            let jtag = JtagDetectTdi::new(mtx.clone(), tck, tdi, tdo, tms).unwrap();
             let ids_scan1 = jtag.scan_with(1).unwrap();
             let ids_scan0 = jtag.scan_with(0).unwrap();
             if ids_scan0.len() > ids_scan1.len() {

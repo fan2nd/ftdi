@@ -28,6 +28,7 @@ impl ChipType {
         match self {
             ChipType::FT232H => &[Interface::A],
             ChipType::FT2232H => &[Interface::A, Interface::B],
+            ChipType::FT4232H => &[Interface::A, Interface::B],
             _ => &[],
         }
     }

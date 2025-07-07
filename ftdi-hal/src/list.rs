@@ -64,8 +64,9 @@ static FTDI_COMPAT_DEVICES: &[FtdiDevice] = &[
 
 pub fn list_all_device() -> Vec<DeviceInfo> {
     fn id_match(info: &DeviceInfo) -> bool {
-        for i in FTDI_COMPAT_DEVICES {
-            if (info.vendor_id(), info.product_id()) == i.id {
+        for device in FTDI_COMPAT_DEVICES {
+            if (info.vendor_id(), info.product_id()) == device.id {
+                log::info!("Find {:?}[{:?}]", device.fallback_chip_type, device.id);
                 return true;
             }
         }
