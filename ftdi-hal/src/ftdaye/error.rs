@@ -19,6 +19,10 @@ pub enum FtdiError {
     #[error("Failed to get active configuration")]
     ActiveConfigurationError(#[from] ActiveConfigurationError),
 
+    #[error("Bad Mpsse Command: {0:?}")]
+    /// The connected device is not supported by the driver.
+    BadMpsseCommand(u8),
+
     #[error("{0}")]
     /// An unspecified error occurred.
     Other(String),

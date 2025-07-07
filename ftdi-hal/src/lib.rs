@@ -166,7 +166,7 @@ use crate::{
 };
 pub use gpio::{InputPin, OutputPin};
 pub use i2c::I2c;
-pub use jtag::SoftJtag;
+pub use jtag::{Jtag, SoftJtag};
 pub use list::list_all_device;
 pub use spi::Spi;
 pub use swd::{Swd, SwdOp, SwdPort};

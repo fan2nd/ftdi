@@ -80,26 +80,27 @@ impl Spi {
         lock.write_read(cmd.as_slice(), &mut [])?;
 
         self.cmd = match (mode, order) {
-            (eh1::spi::MODE_0 | eh1::spi::MODE_3, BitOrder::Lsb) => SpiCommond {
+            (eh1::spi::MODE_0, BitOrder::Lsb) => SpiCommond {
                 write_read: ClockData::LsbPosIn,
                 read: ClockDataIn::LsbPos,
                 write: ClockDataOut::LsbNeg,
             },
-            (eh1::spi::MODE_0 | eh1::spi::MODE_3, BitOrder::Msb) => SpiCommond {
+            (eh1::spi::MODE_0, BitOrder::Msb) => SpiCommond {
                 write_read: ClockData::MsbPosIn,
                 read: ClockDataIn::MsbPos,
                 write: ClockDataOut::MsbNeg,
             },
-            (eh1::spi::MODE_1 | eh1::spi::MODE_2, BitOrder::Lsb) => SpiCommond {
+            (eh1::spi::MODE_2, BitOrder::Lsb) => SpiCommond {
                 write_read: ClockData::LsbNegIn,
                 read: ClockDataIn::LsbNeg,
                 write: ClockDataOut::LsbPos,
             },
-            (eh1::spi::MODE_1 | eh1::spi::MODE_2, BitOrder::Msb) => SpiCommond {
+            (eh1::spi::MODE_2, BitOrder::Msb) => SpiCommond {
                 write_read: ClockData::MsbNegIn,
                 read: ClockDataIn::MsbNeg,
                 write: ClockDataOut::MsbPos,
             },
+            _ => panic!("Not support MODE1 MODE3"),
         };
         Ok(())
     }

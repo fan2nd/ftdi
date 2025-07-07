@@ -196,7 +196,10 @@ impl FtdiContext {
                     .into_result()
                     .map_err(std::io::Error::from)?;
                 if result.len() > 2 {
-                    let (_status, data) = result.split_at(2);
+                    let (status, data) = result.split_at(2);
+                    if status[0] == 0xFA {
+                        return Err(FtdiError::BadMpsseCommand(status[1]));
+                    }
                     let (_, read_buf) = read.split_at_mut(read_len);
                     let (read_buf, _) = read_buf.split_at_mut(data.len());
                     read_buf.copy_from_slice(data);

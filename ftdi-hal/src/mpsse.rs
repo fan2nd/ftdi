@@ -338,7 +338,7 @@ impl From<ClockTMS> for u8 {
 /// [FTDI MPSSE Basics]: https://www.ftdichip.com/Support/Documents/AppNotes/AN_135_MPSSE_Basics.pdf
 /// [`send`]: MpsseCmdExecutor::send
 /// [`xfer`]: MpsseCmdExecutor::xfer
-pub struct MpsseCmdBuilder(pub Vec<u8>);
+pub struct MpsseCmdBuilder(Vec<u8>);
 #[allow(unused)]
 impl MpsseCmdBuilder {
     /// Create a new command builder.
@@ -452,7 +452,6 @@ impl MpsseCmdBuilder {
         self.0.push(MpsseCmd::DisableLoopback.into());
         self
     }
-
     /// Disable 3 phase data clocking.
     ///
     /// This is only available on FTx232H devices.
