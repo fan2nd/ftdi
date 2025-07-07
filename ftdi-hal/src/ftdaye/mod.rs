@@ -20,6 +20,7 @@ impl ChipType {
         match self {
             ChipType::FT232H => true,
             ChipType::FT2232H => true,
+            ChipType::FT4232H => true,
             _ => todo!(),
         }
     }
