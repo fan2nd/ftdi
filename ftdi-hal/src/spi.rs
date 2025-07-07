@@ -100,7 +100,7 @@ impl Spi {
                 read: ClockDataIn::MsbNeg,
                 write: ClockDataOut::MsbPos,
             },
-            _ => panic!("Not support MODE1 MODE3"),
+            _ => panic!("Not support MODE1 MODE3, please read ftdi AN108-2.2"),
         };
         Ok(())
     }

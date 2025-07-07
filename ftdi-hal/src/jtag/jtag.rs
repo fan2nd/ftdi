@@ -84,6 +84,7 @@ impl Jtag {
             lock.alloc_pin(Pin::Lower(3), PinUse::Jtag);
             // set TCK(AD0) TDI(AD1) TMS(AD3) as output pins
             lock.lower.direction |= 0x0b;
+            // TCK(AD0) must be init with value 0
             let cmd = MpsseCmdBuilder::new()
                 .set_gpio_lower(lock.lower.value, lock.lower.direction)
                 .disable_adaptive_data_clocking()

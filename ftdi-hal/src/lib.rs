@@ -193,6 +193,7 @@ enum PinUse {
     I2c,
     Spi,
     Jtag,
+    JtagDetect,
     Swd,
 }
 /// State tracker for each pin on the FTDI chip.
