@@ -21,10 +21,7 @@ fn main() {
         let jtag = JtagDetect::new(mtx.clone(), tck, tms).unwrap();
         let ids_scan = jtag.scan().unwrap();
         for tdo in 0..8 {
-            if !pins.contains(&tdo) {
-                continue;
-            }
-            if tdo == tck || tdo == tms {
+            if !pins.contains(&tdo) || tdo == tck || tdo == tms {
                 continue;
             }
             if ids_scan[tdo].iter().any(Option::is_some) {
@@ -36,10 +33,7 @@ fn main() {
     // find tdi
     for (tck, tms, tdo) in notdi {
         for tdi in 0..8 {
-            if !pins.contains(&tdi) {
-                continue;
-            }
-            if tdi == tck || tdi == tms || tdi == tdo {
+            if !pins.contains(&tdi) || tdi == tck || tdi == tms || tdi == tdo {
                 continue;
             }
             let jtag = JtagScan::new(mtx.clone(), tck, tdi, tdo, tms).unwrap();

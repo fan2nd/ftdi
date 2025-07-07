@@ -1,17 +1,51 @@
 use crate::ftdaye::FtdiError;
 use crate::mpsse::{ClockData, ClockDataIn, ClockDataOut, MpsseCmdBuilder};
-use crate::{BitOrder, FtMpsse, Pin, PinUse};
+use crate::{FtMpsse, Pin, PinUse};
 use eh1::spi::{Error, ErrorKind, ErrorType, SpiBus};
 use std::sync::{Arc, Mutex};
 
-/// FTDI SPI polarity.
-///
-/// This is a helper type to support multiple embedded-hal versions simultaneously.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SpiCommond {
+#[derive(Debug, Clone, Copy)]
+pub enum SpiMode {
+    MsbMode0,
+    LsbMode0,
+    MsbMode2,
+    LsbMode2,
+}
+#[derive(Debug, Clone, Copy)]
+struct SpiCommond {
     write_read: ClockData,
     read: ClockDataIn,
     write: ClockDataOut,
+}
+const MSB_MODE0: SpiCommond = SpiCommond {
+    write_read: ClockData::MsbPosIn,
+    read: ClockDataIn::MsbPos,
+    write: ClockDataOut::MsbNeg,
+};
+const LSB_MODE0: SpiCommond = SpiCommond {
+    write_read: ClockData::LsbPosIn,
+    read: ClockDataIn::LsbPos,
+    write: ClockDataOut::LsbNeg,
+};
+const MSB_MODE2: SpiCommond = SpiCommond {
+    write_read: ClockData::MsbNegIn,
+    read: ClockDataIn::MsbNeg,
+    write: ClockDataOut::MsbPos,
+};
+const LSB_MODE2: SpiCommond = SpiCommond {
+    write_read: ClockData::LsbNegIn,
+    read: ClockDataIn::LsbNeg,
+    write: ClockDataOut::LsbPos,
+};
+impl From<SpiMode> for SpiCommond {
+    fn from(value: SpiMode) -> Self {
+        match value {
+            SpiMode::MsbMode0 => MSB_MODE0,
+            SpiMode::LsbMode0 => LSB_MODE0,
+            SpiMode::MsbMode2 => MSB_MODE2,
+            SpiMode::LsbMode2 => LSB_MODE2,
+        }
+    }
 }
 
 /// FTDI SPI bus.
@@ -45,12 +79,10 @@ impl Spi {
             lock.alloc_pin(Pin::Lower(1), PinUse::Spi);
             lock.alloc_pin(Pin::Lower(2), PinUse::Spi);
 
-            // clear direction of first 3 pins
-            lock.lower.direction &= !0x07;
+            // default MODE0, SCK(AD0) default 0
             // set SCK(AD0) and MOSI (AD1) as output pins
             lock.lower.direction |= 0x03;
-            // set SCK(AD0) to 1
-            lock.lower.value |= 0x01;
+
             let cmd = MpsseCmdBuilder::new()
                 .set_gpio_lower(lock.lower.value, lock.lower.direction)
                 .disable_adaptive_data_clocking()
@@ -59,49 +91,24 @@ impl Spi {
                 .send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
         }
-        let cmd = SpiCommond {
-            write_read: ClockData::MsbPosIn,
-            read: ClockDataIn::MsbPos,
-            write: ClockDataOut::MsbNeg,
-        };
-        Ok(Spi { mtx, cmd })
+        Ok(Spi {
+            mtx,
+            cmd: MSB_MODE0,
+        })
     }
     /// set spi mode and bitorder
-    pub fn set_mode(&mut self, mode: eh1::spi::Mode, order: BitOrder) -> Result<(), FtdiError> {
+    pub fn set_mode(&mut self, mode: SpiMode) -> Result<(), FtdiError> {
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         // set SCK polarity
-        match mode.polarity {
-            eh1::spi::Polarity::IdleLow => lock.lower.value &= 0xFE, // set SCK(AD0) to 0
-            eh1::spi::Polarity::IdleHigh => lock.lower.value |= 0x01, // set SCK(AD0) to 1
+        match mode {
+            SpiMode::MsbMode0 | SpiMode::LsbMode0 => lock.lower.value &= 0xfe, // set SCK(AD0) to 0
+            SpiMode::MsbMode2 | SpiMode::LsbMode2 => lock.lower.value |= 0x01, // set SCK(AD0) to 1
         }
         let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
             .set_gpio_lower(lock.lower.value, lock.lower.direction)
             .send_immediate();
         lock.write_read(cmd.as_slice(), &mut [])?;
-
-        self.cmd = match (mode, order) {
-            (eh1::spi::MODE_0, BitOrder::Lsb) => SpiCommond {
-                write_read: ClockData::LsbPosIn,
-                read: ClockDataIn::LsbPos,
-                write: ClockDataOut::LsbNeg,
-            },
-            (eh1::spi::MODE_0, BitOrder::Msb) => SpiCommond {
-                write_read: ClockData::MsbPosIn,
-                read: ClockDataIn::MsbPos,
-                write: ClockDataOut::MsbNeg,
-            },
-            (eh1::spi::MODE_2, BitOrder::Lsb) => SpiCommond {
-                write_read: ClockData::LsbNegIn,
-                read: ClockDataIn::LsbNeg,
-                write: ClockDataOut::LsbPos,
-            },
-            (eh1::spi::MODE_2, BitOrder::Msb) => SpiCommond {
-                write_read: ClockData::MsbNegIn,
-                read: ClockDataIn::MsbNeg,
-                write: ClockDataOut::MsbPos,
-            },
-            _ => panic!("Not support MODE1 MODE3, please read ftdi AN108-2.2"),
-        };
+        self.cmd = mode.into();
         Ok(())
     }
 }

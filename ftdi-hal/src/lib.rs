@@ -168,17 +168,9 @@ pub use gpio::{InputPin, OutputPin};
 pub use i2c::I2c;
 pub use jtag::{Jtag, JtagDetect, JtagScan};
 pub use list::list_all_device;
-pub use spi::Spi;
+pub use spi::{Spi, SpiMode};
 pub use swd::{Swd, SwdOp, SwdPort};
 
-/// Order
-#[derive(Debug, Clone, Copy)]
-pub enum BitOrder {
-    /// Bit0 first
-    Lsb,
-    /// Bit7 first
-    Msb,
-}
 /// Pin number
 #[derive(Debug, Copy, Clone)]
 pub enum Pin {

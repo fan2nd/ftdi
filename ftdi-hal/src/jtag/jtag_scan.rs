@@ -85,7 +85,7 @@ impl JtagScan {
             .send_immediate();
         let read = &mut [0];
         lock.write_read(cmd.as_slice(), read)?;
-        Ok(read[0] & 1 << self.tdo != 0)
+        Ok(read[0] & (1 << self.tdo) != 0)
     }
 
     // 辅助函数：产生时钟边沿并读取TDO

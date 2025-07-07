@@ -78,16 +78,18 @@ impl Swd {
         Ok(())
     }
     /// Build SWD request packet (lsb 8 bits)
-    /// Format: [Start(1), APnDP, RnW, A[2:3], Parity, Stop(0), Park(1)]
+    /// Format: low[Start(1), APnDP, RnW, A[2:3], Parity, Stop(0), Park(1)]high
     fn build_request(port: SwdPort, op: SwdOp, addr: u8) -> u8 {
-        let a = (addr >> 2) & 0x03; // Extract A[3:2]
+        let addr = (addr >> 2) & 0x03; // Extract A[3:2]
         let mut request = 0x81; // Start(1) + Park(1) with Stop(0)
 
         request |= (port as u8) << 1; // Set APnDP bit (position 1)
         request |= (op as u8) << 2; // Set RnW bit (position 2)
-        request |= a << 3; // Set address bits (positions 3-4)
+        request |= addr << 3; // Set address bits (positions 3-4)
 
-        // Calculate parity over APnDP, RnW, A[3:2] (bits 1-4)
+        // The parity check is made over the APnDP, RnW and A[2:3] bits. If, of these four bits:
+        // • the number of bits set to 1 is odd, then the parity bit is set to 1
+        // • the number of bits set to 1 is even, then the parity bit is set to 0.
         let parity = ((request >> 1) & 0x0F).count_ones() as u8 & 1;
         request |= parity << 5; // Set parity bit (position 5)
 
