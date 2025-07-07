@@ -35,12 +35,12 @@ impl OutputPin {
                 Pin::Upper(idx) => (&mut lock.upper, idx),
             };
             byte.direction |= 1 << idx;
-            let cmd = MpsseCmdBuilder::new();
-            let cmd = match pin {
+            let mut cmd = MpsseCmdBuilder::new();
+            match pin {
                 Pin::Lower(_) => cmd.set_gpio_lower(byte.value, byte.direction),
                 Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
-            }
-            .send_immediate();
+            };
+            cmd.send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
         }
         Ok(OutputPin { mtx, pin })
@@ -60,12 +60,12 @@ impl OutputPin {
             byte.value &= !self.mask();
         };
 
-        let cmd = MpsseCmdBuilder::new();
-        let cmd = match self.pin {
+        let mut cmd = MpsseCmdBuilder::new();
+        match self.pin {
             Pin::Lower(_) => cmd.set_gpio_lower(byte.value, byte.direction),
             Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
-        }
-        .send_immediate();
+        };
+        cmd.send_immediate();
         lock.write_read(cmd.as_slice(), &mut [])?;
 
         Ok(())
@@ -132,12 +132,12 @@ impl InputPin {
                 Pin::Upper(idx) => (&mut lock.upper, idx),
             };
             byte.direction &= !(1 << idx);
-            let cmd = MpsseCmdBuilder::new();
-            let cmd = match pin {
+            let mut cmd = MpsseCmdBuilder::new();
+            match pin {
                 Pin::Lower(_) => cmd.set_gpio_lower(byte.value, byte.direction),
                 Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
-            }
-            .send_immediate();
+            };
+            cmd.send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
         }
         Ok(InputPin { mtx, pin })
@@ -147,12 +147,12 @@ impl InputPin {
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
 
         let mut buffer = [0u8; 1];
-        let cmd = MpsseCmdBuilder::new();
-        let cmd = match self.pin {
+        let mut cmd = MpsseCmdBuilder::new();
+        match self.pin {
             Pin::Lower(_) => cmd.gpio_lower(),
             Pin::Upper(_) => cmd.gpio_upper(),
-        }
-        .send_immediate();
+        };
+        cmd.send_immediate();
         lock.write_read(cmd.as_slice(), &mut buffer)?;
 
         Ok((buffer[0] & self.mask()) != 0)

@@ -83,8 +83,8 @@ impl Spi {
             // set SCK(AD0) and MOSI (AD1) as output pins
             lock.lower.direction |= 0x03;
 
-            let cmd = MpsseCmdBuilder::new()
-                .set_gpio_lower(lock.lower.value, lock.lower.direction)
+            let mut cmd = MpsseCmdBuilder::new();
+            cmd.set_gpio_lower(lock.lower.value, lock.lower.direction)
                 .disable_3phase_data_clocking()
                 .send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
@@ -102,8 +102,8 @@ impl Spi {
             SpiMode::MsbMode0 | SpiMode::LsbMode0 => lock.lower.value &= 0xfe, // set SCK(AD0) to 0
             SpiMode::MsbMode2 | SpiMode::LsbMode2 => lock.lower.value |= 0x01, // set SCK(AD0) to 1
         }
-        let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
-            .set_gpio_lower(lock.lower.value, lock.lower.direction)
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.set_gpio_lower(lock.lower.value, lock.lower.direction)
             .send_immediate();
         lock.write_read(cmd.as_slice(), &mut [])?;
         self.cmd = mode.into();
@@ -123,8 +123,8 @@ impl ErrorType for Spi {
 
 impl SpiBus<u8> for Spi {
     fn read(&mut self, words: &mut [u8]) -> Result<(), Self::Error> {
-        let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
-            .clock_data_in(self.cmd.read, words.len())
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.clock_data_in(self.cmd.read, words.len())
             .send_immediate();
 
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
@@ -134,9 +134,8 @@ impl SpiBus<u8> for Spi {
     }
 
     fn write(&mut self, words: &[u8]) -> Result<(), Self::Error> {
-        let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
-            .clock_data_out(self.cmd.write, words)
-            .send_immediate();
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.clock_data_out(self.cmd.write, words).send_immediate();
 
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.write_read(cmd.as_slice(), &mut [])?;
@@ -149,9 +148,8 @@ impl SpiBus<u8> for Spi {
     }
 
     fn transfer_in_place(&mut self, words: &mut [u8]) -> Result<(), Self::Error> {
-        let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
-            .clock_data(self.cmd.write_read, words)
-            .send_immediate();
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.clock_data(self.cmd.write_read, words).send_immediate();
 
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
 
@@ -161,9 +159,8 @@ impl SpiBus<u8> for Spi {
     }
 
     fn transfer(&mut self, read: &mut [u8], write: &[u8]) -> Result<(), Self::Error> {
-        let cmd: MpsseCmdBuilder = MpsseCmdBuilder::new()
-            .clock_data(self.cmd.write_read, write)
-            .send_immediate();
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.clock_data(self.cmd.write_read, write).send_immediate();
 
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.write_read(cmd.as_slice(), read)?;

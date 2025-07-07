@@ -4,7 +4,7 @@ use futures_lite::future::{block_on, zip};
 use nusb::transfer::{Control, ControlType, Recipient, RequestBuffer};
 use std::time::Duration;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChipType {
     Am,
     Bm,
@@ -28,7 +28,14 @@ impl ChipType {
         match self {
             ChipType::FT232H => &[Interface::A],
             ChipType::FT2232H => &[Interface::A, Interface::B],
-            _ => todo!(),
+            _ => &[],
+        }
+    }
+    pub fn has_upper_pin(self) -> bool {
+        match self {
+            ChipType::FT232H | ChipType::FT2232H => true,
+            ChipType::FT4232H => false,
+            _ => false,
         }
     }
 }

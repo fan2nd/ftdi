@@ -42,7 +42,8 @@ impl JtagDetect {
         }
         lock.upper.value |= 1 << self.tck | 1 << self.tms;
         lock.upper.direction = 0xff;
-        let cmd = MpsseCmdBuilder::new().set_gpio_upper(lock.upper.value, lock.upper.direction);
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.set_gpio_upper(lock.upper.value, lock.upper.direction);
         lock.write_read(cmd.as_slice(), &mut [])?;
         Ok(())
     }
@@ -50,14 +51,15 @@ impl JtagDetect {
     // 将JTAG状态机复位到Run-Test/Idle状态
     fn reset2dr(&self) -> Result<(), FtdiError> {
         let direction = 1 << self.tck | 1 << self.tms;
-        let mut cmd = MpsseCmdBuilder::new().set_gpio_lower(1 << self.tck, direction);
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.set_gpio_lower(1 << self.tck, direction);
         for _ in 0..5 {
-            cmd = cmd
+            cmd
                 // TMS1
                 .set_gpio_lower(1 << self.tms, direction) // TCK to low
                 .set_gpio_lower(1 << self.tck | 1 << self.tms, direction); // TCK to high
         }
-        cmd = cmd
+        cmd
             // TMS0
             .set_gpio_lower(0, direction) // TCK to low
             .set_gpio_lower(1 << self.tck, direction) // TCK to high
@@ -79,10 +81,9 @@ impl JtagDetect {
         let mut read_buf = vec![0; len];
         let mut cmd = MpsseCmdBuilder::new();
         for _ in 0..len {
-            cmd = cmd
-                .set_gpio_lower(0, direction) // TCK to low
+            cmd.set_gpio_lower(0, direction) // TCK to low
                 .set_gpio_lower(1 << self.tck, direction) // TCK to high
-                .gpio_lower()
+                .gpio_lower();
         }
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.write_read(cmd.as_slice(), &mut read_buf)?;

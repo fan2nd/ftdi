@@ -11,50 +11,44 @@ impl JtagCmdBuilder {
     fn as_slice(&self) -> &[u8] {
         self.0.as_slice()
     }
-    fn any2idle(self) -> Self {
-        JtagCmdBuilder(
-            self.0
-                .clock_tms_out(ClockTMSOut::NegEdge, 0b0001_1111, true, 6),
-        )
+    fn any2idle(&mut self) -> &mut Self {
+        self.0
+            .clock_tms_out(ClockTMSOut::NegEdge, 0b0001_1111, true, 6);
+        self
     }
-    fn idle_cycle(self) -> Self {
-        JtagCmdBuilder(self.0.clock_tms_out(ClockTMSOut::NegEdge, 0, true, 7))
+    fn idle_cycle(&mut self) -> &mut Self {
+        self.0.clock_tms_out(ClockTMSOut::NegEdge, 0, true, 7);
+        self
     }
-    fn idle2ir(self) -> Self {
-        JtagCmdBuilder(
-            self.0
-                .clock_tms_out(ClockTMSOut::NegEdge, 0b0000_0011, true, 4),
-        )
+    fn idle2ir(&mut self) -> &mut Self {
+        self.0
+            .clock_tms_out(ClockTMSOut::NegEdge, 0b0000_0011, true, 4);
+        self
     }
-    fn ir_last(self, tdi: bool) -> Self {
-        JtagCmdBuilder(
-            self.0
-                .clock_tms(ClockTMS::NegTMSPosTDO, 0b0000_0001, tdi, 1),
-        )
+    fn ir_last(&mut self, tdi: bool) -> &mut Self {
+        self.0
+            .clock_tms(ClockTMS::NegTMSPosTDO, 0b0000_0001, tdi, 1);
+        self
     }
-    fn ir_exit2dr(self) -> Self {
-        JtagCmdBuilder(
-            self.0
-                .clock_tms_out(ClockTMSOut::NegEdge, 0b0000_0011, true, 4),
-        )
+    fn ir_exit2dr(&mut self) -> &mut Self {
+        self.0
+            .clock_tms_out(ClockTMSOut::NegEdge, 0b0000_0011, true, 4);
+        self
     }
-    fn idle2dr(self) -> Self {
-        JtagCmdBuilder(
-            self.0
-                .clock_tms_out(ClockTMSOut::NegEdge, 0b0000_0001, true, 3),
-        )
+    fn idle2dr(&mut self) -> &mut Self {
+        self.0
+            .clock_tms_out(ClockTMSOut::NegEdge, 0b0000_0001, true, 3);
+        self
     }
-    fn dr_last(self, tdi: bool) -> Self {
-        JtagCmdBuilder(
-            self.0
-                .clock_tms(ClockTMS::NegTMSPosTDO, 0b0000_0001, tdi, 1),
-        )
+    fn dr_last(&mut self, tdi: bool) -> &mut Self {
+        self.0
+            .clock_tms(ClockTMS::NegTMSPosTDO, 0b0000_0001, tdi, 1);
+        self
     }
-    fn dr_exit2idle(self) -> Self {
-        JtagCmdBuilder(
-            self.0
-                .clock_tms_out(ClockTMSOut::NegEdge, 0b0000_0001, true, 2),
-        )
+    fn dr_exit2idle(&mut self) -> &mut Self {
+        self.0
+            .clock_tms_out(ClockTMSOut::NegEdge, 0b0000_0001, true, 2);
+        self
     }
 }
 
@@ -83,8 +77,8 @@ impl Jtag {
             // set TCK(AD0) TDI(AD1) TMS(AD3) as output pins
             lock.lower.direction |= 0x0b;
             // TCK(AD0) must be init with value 0
-            let cmd = MpsseCmdBuilder::new()
-                .set_gpio_lower(lock.lower.value, lock.lower.direction)
+            let mut cmd = MpsseCmdBuilder::new();
+            cmd.set_gpio_lower(lock.lower.value, lock.lower.direction)
                 .disable_3phase_data_clocking()
                 .send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
@@ -113,14 +107,16 @@ impl Jtag {
         Ok(())
     }
     pub fn goto_idle(&self) -> Result<(), FtdiError> {
-        let cmd = JtagCmdBuilder::new().any2idle();
+        let mut cmd = JtagCmdBuilder::new();
+        cmd.any2idle();
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.write_read(cmd.as_slice(), &mut [])?;
         Ok(())
     }
     pub fn scan_with(&self, tdi: bool) -> Result<Vec<Option<u32>>, FtdiError> {
         const ID_LEN: usize = 32;
-        let cmd = JtagCmdBuilder::new().any2idle().idle2dr();
+        let mut cmd = JtagCmdBuilder::new();
+        cmd.any2idle().idle2dr();
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.write_read(cmd.as_slice(), &mut [])?;
         let tdi = if tdi { vec![0xff; 4] } else { vec![0; 4] };
@@ -131,9 +127,8 @@ impl Jtag {
         let mut consecutive_zeros = 0;
 
         'outer: loop {
-            let cmd = MpsseCmdBuilder::new()
-                .clock_data(ClockData::LsbPosIn, &tdi)
-                .send_immediate();
+            let mut cmd = MpsseCmdBuilder::new();
+            cmd.clock_data(ClockData::LsbPosIn, &tdi).send_immediate();
             let read_buf = &mut [0; 4];
             lock.write_read(cmd.as_slice(), read_buf)?;
             let tdos: Vec<_> = read_buf
@@ -167,7 +162,8 @@ impl Jtag {
         }
 
         // 退出Shift-DR状态
-        let cmd = JtagCmdBuilder::new().any2idle();
+        let mut cmd = JtagCmdBuilder::new();
+        cmd.any2idle();
         lock.write_read(cmd.as_slice(), &mut [])?;
         Ok(idcodes)
     }

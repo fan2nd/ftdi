@@ -55,10 +55,8 @@ impl I2c {
             // pins are set as input (tri-stated) in idle mode
 
             // set GPIO pins to new state
-            let cmd = MpsseCmdBuilder::new()
-                .set_gpio_lower(lock.lower.value, lock.lower.direction)
-                .disable_adaptive_data_clocking()
-                .disable_loopback()
+            let mut cmd = MpsseCmdBuilder::new();
+            cmd.set_gpio_lower(lock.lower.value, lock.lower.direction)
                 .enable_3phase_data_clocking()
                 .send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
@@ -106,16 +104,15 @@ impl I2c {
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
 
         // ST
-        let mut mpsse_cmd: MpsseCmdBuilder = MpsseCmdBuilder::new();
+        let mut mpsse_cmd = MpsseCmdBuilder::new();
         for _ in 0..self.start_stop_cmds {
-            mpsse_cmd = mpsse_cmd.set_gpio_lower(
+            mpsse_cmd.set_gpio_lower(
                 lock.lower.value | SCL | SDA,
                 SCL | SDA | lock.lower.direction,
-            )
+            );
         }
         for _ in 0..self.start_stop_cmds {
-            mpsse_cmd =
-                mpsse_cmd.set_gpio_lower(lock.lower.value | SCL, SCL | SDA | lock.lower.direction)
+            mpsse_cmd.set_gpio_lower(lock.lower.value | SCL, SCL | SDA | lock.lower.direction);
         }
         lock.write_read(mpsse_cmd.as_slice(), &mut [])?;
 
@@ -124,30 +121,30 @@ impl I2c {
             match operation {
                 Operation::Read(buffer) => {
                     if idx == 0 || !prev_op_was_a_read {
-                        let mut mpsse_cmd: MpsseCmdBuilder = MpsseCmdBuilder::new();
+                        let mut mpsse_cmd = MpsseCmdBuilder::new();
                         if idx != 0 {
                             // SR
                             for _ in 0..self.start_stop_cmds {
-                                mpsse_cmd = mpsse_cmd.set_gpio_lower(
+                                mpsse_cmd.set_gpio_lower(
                                     lock.lower.value | SCL | SDA,
                                     SCL | SDA | lock.lower.direction,
-                                )
+                                );
                             }
                             for _ in 0..self.start_stop_cmds {
-                                mpsse_cmd = mpsse_cmd.set_gpio_lower(
+                                mpsse_cmd.set_gpio_lower(
                                     lock.lower.value | SCL,
                                     SCL | SDA | lock.lower.direction,
-                                )
+                                );
                             }
                             for _ in 0..self.start_stop_cmds {
-                                mpsse_cmd = mpsse_cmd.set_gpio_lower(
+                                mpsse_cmd.set_gpio_lower(
                                     lock.lower.value,
                                     SCL | SDA | lock.lower.direction,
-                                )
+                                );
                             }
                         }
 
-                        mpsse_cmd = mpsse_cmd
+                        mpsse_cmd
                             // SAD + R
                             .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
                             .clock_bits_out(BITS_OUT, (address << 1) | 1, 8)
@@ -163,21 +160,21 @@ impl I2c {
                         }
                     }
 
-                    let mut mpsse_cmd: MpsseCmdBuilder = MpsseCmdBuilder::new();
+                    let mut mpsse_cmd = MpsseCmdBuilder::new();
                     for idx in 0..buffer.len() {
-                        mpsse_cmd = mpsse_cmd
+                        mpsse_cmd
                             .set_gpio_lower(lock.lower.value, SCL | lock.lower.direction)
                             .clock_bits_in(BITS_IN, 8);
                         if idx == buffer.len() - 1 {
                             // NMAK
-                            mpsse_cmd = mpsse_cmd
+                            mpsse_cmd
                                 .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
-                                .clock_bits_out(BITS_OUT, 0x80, 1)
+                                .clock_bits_out(BITS_OUT, 0x80, 1);
                         } else {
                             // MAK
-                            mpsse_cmd = mpsse_cmd
+                            mpsse_cmd
                                 .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
-                                .clock_bits_out(BITS_OUT, 0x00, 1)
+                                .clock_bits_out(BITS_OUT, 0x00, 1);
                         }
                     }
                     lock.write_read(mpsse_cmd.as_slice(), &mut [])?;
@@ -186,30 +183,30 @@ impl I2c {
                 }
                 Operation::Write(bytes) => {
                     if idx == 0 || prev_op_was_a_read {
-                        let mut mpsse_cmd: MpsseCmdBuilder = MpsseCmdBuilder::new();
+                        let mut mpsse_cmd = MpsseCmdBuilder::new();
                         if idx != 0 {
                             // SR
                             for _ in 0..self.start_stop_cmds {
-                                mpsse_cmd = mpsse_cmd.set_gpio_lower(
+                                mpsse_cmd.set_gpio_lower(
                                     lock.lower.value | SCL | SDA,
                                     SCL | SDA | lock.lower.direction,
-                                )
+                                );
                             }
                             for _ in 0..self.start_stop_cmds {
-                                mpsse_cmd = mpsse_cmd.set_gpio_lower(
+                                mpsse_cmd.set_gpio_lower(
                                     lock.lower.value | SCL,
                                     SCL | SDA | lock.lower.direction,
-                                )
+                                );
                             }
                             for _ in 0..self.start_stop_cmds {
-                                mpsse_cmd = mpsse_cmd.set_gpio_lower(
+                                mpsse_cmd.set_gpio_lower(
                                     lock.lower.value,
                                     SCL | SDA | lock.lower.direction,
-                                )
+                                );
                             }
                         }
 
-                        mpsse_cmd = mpsse_cmd
+                        mpsse_cmd
                             // SAD + W
                             .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
                             .clock_bits_out(BITS_OUT, address << 1, 8)
@@ -226,8 +223,8 @@ impl I2c {
                     }
 
                     for byte in *bytes {
-                        let mut mpsse_cmd: MpsseCmdBuilder = MpsseCmdBuilder::new();
-                        mpsse_cmd = mpsse_cmd
+                        let mut mpsse_cmd = MpsseCmdBuilder::new();
+                        mpsse_cmd
                             // Oi
                             .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
                             .clock_bits_out(BITS_OUT, *byte, 8)
@@ -248,24 +245,23 @@ impl I2c {
             }
         }
 
-        let mut mpsse_cmd: MpsseCmdBuilder = MpsseCmdBuilder::new();
+        let mut mpsse_cmd = MpsseCmdBuilder::new();
         // SP
         for _ in 0..self.start_stop_cmds {
-            mpsse_cmd = mpsse_cmd.set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
+            mpsse_cmd.set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction);
         }
         for _ in 0..self.start_stop_cmds {
-            mpsse_cmd =
-                mpsse_cmd.set_gpio_lower(lock.lower.value | SCL, SCL | SDA | lock.lower.direction)
+            mpsse_cmd.set_gpio_lower(lock.lower.value | SCL, SCL | SDA | lock.lower.direction);
         }
         for _ in 0..self.start_stop_cmds {
-            mpsse_cmd = mpsse_cmd.set_gpio_lower(
+            mpsse_cmd.set_gpio_lower(
                 lock.lower.value | SCL | SDA,
                 SCL | SDA | lock.lower.direction,
-            )
+            );
         }
 
         // Idle
-        mpsse_cmd = mpsse_cmd
+        mpsse_cmd
             .set_gpio_lower(lock.lower.value, lock.lower.direction)
             .send_immediate();
         lock.write_read(mpsse_cmd.as_slice(), &mut [])?;

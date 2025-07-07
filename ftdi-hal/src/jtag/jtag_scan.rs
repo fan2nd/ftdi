@@ -68,21 +68,21 @@ impl JtagScan {
         assert!(tms_val == 0 || tms_val == 1);
         assert!(tdi_val == 0 || tdi_val == 1);
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
-        let cmd = MpsseCmdBuilder::new()
-            .set_gpio_lower(
-                lock.lower.value | tdi_val << self.tdi | tms_val << self.tms,
-                lock.lower.direction,
-            )
-            .set_gpio_lower(
-                lock.lower.value | 1 << self.tck | tdi_val << self.tdi | tms_val << self.tms,
-                lock.lower.direction,
-            )
-            .gpio_lower()
-            .set_gpio_lower(
-                lock.lower.value | tdi_val << self.tdi | tms_val << self.tms,
-                lock.lower.direction,
-            )
-            .send_immediate();
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.set_gpio_lower(
+            lock.lower.value | tdi_val << self.tdi | tms_val << self.tms,
+            lock.lower.direction,
+        )
+        .set_gpio_lower(
+            lock.lower.value | 1 << self.tck | tdi_val << self.tdi | tms_val << self.tms,
+            lock.lower.direction,
+        )
+        .gpio_lower()
+        .set_gpio_lower(
+            lock.lower.value | tdi_val << self.tdi | tms_val << self.tms,
+            lock.lower.direction,
+        )
+        .send_immediate();
         let read = &mut [0];
         lock.write_read(cmd.as_slice(), read)?;
         Ok(read[0] & (1 << self.tdo) != 0)
@@ -93,23 +93,23 @@ impl JtagScan {
         assert!(tms_val == 0 || tms_val == 1);
         assert!(tdi_val == 0 || tdi_val == 1);
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
-        let mut cmd = MpsseCmdBuilder::new().set_gpio_lower(
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.set_gpio_lower(
             lock.lower.value | tdi_val << self.tdi | tms_val << self.tms,
             lock.lower.direction,
         );
         for _ in 0..count {
-            cmd = cmd
-                .set_gpio_lower(
-                    lock.lower.value | 1 << self.tck | tdi_val << self.tdi | tms_val << self.tms,
-                    lock.lower.direction,
-                ) // set tck to high
-                .gpio_lower()
-                .set_gpio_lower(
-                    lock.lower.value | tdi_val << self.tdi | tms_val << self.tms,
-                    lock.lower.direction,
-                ); // set tck to low
+            cmd.set_gpio_lower(
+                lock.lower.value | 1 << self.tck | tdi_val << self.tdi | tms_val << self.tms,
+                lock.lower.direction,
+            ) // set tck to high
+            .gpio_lower()
+            .set_gpio_lower(
+                lock.lower.value | tdi_val << self.tdi | tms_val << self.tms,
+                lock.lower.direction,
+            ); // set tck to low
         }
-        cmd = cmd.send_immediate();
+        cmd.send_immediate();
         let mut read_buf = vec![0; count];
         lock.write_read(cmd.as_slice(), &mut read_buf)?;
         Ok(read_buf

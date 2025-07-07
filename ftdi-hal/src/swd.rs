@@ -50,8 +50,8 @@ impl Swd {
             lock.lower.direction &= !0x07;
             lock.lower.value &= !0x07;
             // set GPIO pins to new state
-            let cmd = MpsseCmdBuilder::new()
-                .set_gpio_lower(lock.lower.value, lock.lower.direction)
+            let mut cmd = MpsseCmdBuilder::new();
+            cmd.set_gpio_lower(lock.lower.value, lock.lower.direction)
                 .disable_adaptive_data_clocking()
                 .disable_loopback()
                 .enable_3phase_data_clocking()
@@ -67,8 +67,8 @@ impl Swd {
         const SEQUENCE: [u8; 2] = [0x79, 0xe7]; // Activation pattern
 
         let lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
-        let cmd = MpsseCmdBuilder::new()
-            .set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO)
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO)
             .clock_data_out(ClockDataOut::LsbPos, &ONES) // >50 ones (LSB first)
             .clock_data_out(ClockDataOut::MsbPos, &SEQUENCE) // Activation pattern (MSB first)
             .clock_data_out(ClockDataOut::LsbPos, &ONES) // >50 ones (LSB first)
@@ -101,8 +101,8 @@ impl Swd {
         let response: &mut [u8] = &mut [0];
         let lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
         // Send request (8 bits)
-        let cmd = MpsseCmdBuilder::new()
-            .set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
             .clock_data_out(ClockDataOut::LsbPos, &[request]) // // Send request
             .set_gpio_lower(lock.lower.value, lock.lower.direction | SCK) // DIO as input
             .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Output2Input
@@ -114,8 +114,8 @@ impl Swd {
         // 0..2	- 001:失败 010:等待 100:成功
         let ack = response[0] >> 5;
         if ack != 0b001 {
-            let cmd = MpsseCmdBuilder::new()
-                .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Input2Output
+            let mut cmd = MpsseCmdBuilder::new();
+            cmd.clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Input2Output
                 .send_immediate();
             lock.write_read(cmd.as_slice(), response)?;
             match ack {
@@ -127,8 +127,8 @@ impl Swd {
 
         // Read data (32 bits) + parity (1 bit) = 33 bits
         let mut data = [0u8; 5]; // 33 bits = 5 bytes
-        let cmd = MpsseCmdBuilder::new()
-            .clock_data_in(ClockDataIn::LsbNeg, 4) // 32-bit data
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.clock_data_in(ClockDataIn::LsbNeg, 4) // 32-bit data
             .clock_bits_in(ClockBitsIn::LsbNeg, 1) // 1-bit parity
             .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Input2Output
             .send_immediate();
@@ -149,8 +149,8 @@ impl Swd {
         let request = Self::build_request(port, SwdOp::Write, addr);
         let response: &mut [u8] = &mut [0];
         let lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
-        let cmd = MpsseCmdBuilder::new()
-            .set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
             .clock_data_out(ClockDataOut::LsbPos, &[request]) // Send request
             .set_gpio_lower(lock.lower.value, lock.lower.direction | SCK) // DIO as input
             .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Output2Input
@@ -175,8 +175,8 @@ impl Swd {
         let parity = value.count_ones() as u8 & 1;
 
         // Send data (33 bits)
-        let cmd = MpsseCmdBuilder::new()
-            .set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
             .clock_data_out(ClockDataOut::LsbPos, &data)
             .clock_bits_out(ClockBitsOut::LsbPos, parity, 1)
             .send_immediate();

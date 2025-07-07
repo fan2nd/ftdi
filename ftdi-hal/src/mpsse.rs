@@ -50,9 +50,9 @@ pub enum MpsseCmd {
     // EnableDriveOnlyZero = 0x9E,
 }
 
-impl From<MpsseCmd> for u8 {
-    fn from(value: MpsseCmd) -> Self {
-        value as u8
+impl Into<u8> for MpsseCmd {
+    fn into(self) -> u8 {
+        self as u8
     }
 }
 
@@ -401,7 +401,7 @@ impl MpsseCmdBuilder {
     /// let cmd = MpsseCmdBuilder::new().set_clock(9, Some(false));
     ///
     /// ```
-    pub fn set_clock(mut self, divisor: u32, clkdiv: Option<bool>) -> Self {
+    pub fn set_clock(&mut self, divisor: u32, clkdiv: Option<bool>) -> &mut Self {
         match clkdiv {
             Some(true) => self.0.push(MpsseCmd::EnableClockDivide.into()),
             Some(false) => self.0.push(MpsseCmd::DisableClockDivide.into()),
@@ -430,7 +430,7 @@ impl MpsseCmdBuilder {
     /// ft.write_all(cmd.as_slice())?;
     /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
     /// ```
-    pub fn enable_loopback(mut self) -> Self {
+    pub fn enable_loopback(&mut self) -> &mut Self {
         self.0.push(MpsseCmd::EnableLoopback.into());
         self
     }
@@ -450,7 +450,7 @@ impl MpsseCmdBuilder {
     /// ft.write_all(cmd.as_slice())?;
     /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
     /// ```
-    pub fn disable_loopback(mut self) -> Self {
+    pub fn disable_loopback(&mut self) -> &mut Self {
         self.0.push(MpsseCmd::DisableLoopback.into());
         self
     }
@@ -478,7 +478,7 @@ impl MpsseCmdBuilder {
     /// ft.write_all(cmd.as_slice())?;
     /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
     /// ```
-    pub fn disable_3phase_data_clocking(mut self) -> Self {
+    pub fn disable_3phase_data_clocking(&mut self) -> &mut Self {
         self.0.push(MpsseCmd::Disable3PhaseClocking.into());
         self
     }
@@ -510,7 +510,7 @@ impl MpsseCmdBuilder {
     /// ft.write_all(cmd.as_slice())?;
     /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
     /// ```
-    pub fn enable_3phase_data_clocking(mut self) -> Self {
+    pub fn enable_3phase_data_clocking(&mut self) -> &mut Self {
         self.0.push(MpsseCmd::Enable3PhaseClocking.into());
         self
     }
@@ -518,7 +518,7 @@ impl MpsseCmdBuilder {
     /// Enable adaptive data clocking.
     ///
     /// This is only available on FTx232H devices.
-    pub fn enable_adaptive_data_clocking(mut self) -> Self {
+    pub fn enable_adaptive_data_clocking(&mut self) -> &mut Self {
         self.0.push(MpsseCmd::EnableAdaptiveClocking.into());
         self
     }
@@ -526,7 +526,7 @@ impl MpsseCmdBuilder {
     /// Enable adaptive data clocking.
     ///
     /// This is only available on FTx232H devices.
-    pub fn disable_adaptive_data_clocking(mut self) -> Self {
+    pub fn disable_adaptive_data_clocking(&mut self) -> &mut Self {
         self.0.push(MpsseCmd::DisableAdaptiveClocking.into());
         self
     }
@@ -558,7 +558,7 @@ impl MpsseCmdBuilder {
     /// ft.write_all(cmd.as_slice())?;
     /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
     /// ```
-    pub fn set_gpio_lower(mut self, state: u8, direction: u8) -> Self {
+    pub fn set_gpio_lower(&mut self, state: u8, direction: u8) -> &mut Self {
         self.0
             .extend_from_slice(&[MpsseCmd::SetDataBitsLowbyte.into(), state, direction]);
         self
@@ -597,7 +597,7 @@ impl MpsseCmdBuilder {
     /// ft.write_all(cmd.as_slice())?;
     /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
     /// ```
-    pub fn set_gpio_upper(mut self, state: u8, direction: u8) -> Self {
+    pub fn set_gpio_upper(&mut self, state: u8, direction: u8) -> &mut Self {
         self.0
             .extend_from_slice(&[MpsseCmd::SetDataBitsHighbyte.into(), state, direction]);
         self
@@ -622,7 +622,7 @@ impl MpsseCmdBuilder {
     /// println!("GPIO lower state: 0x{:02X}", buf[0]);
     /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
     /// ```
-    pub fn gpio_lower(mut self) -> Self {
+    pub fn gpio_lower(&mut self) -> &mut Self {
         self.0.push(MpsseCmd::GetDataBitsLowbyte.into());
         self
     }
@@ -651,7 +651,7 @@ impl MpsseCmdBuilder {
     /// ```
     ///
     /// [`set_gpio_upper`]: MpsseCmdBuilder::set_gpio_upper
-    pub fn gpio_upper(mut self) -> Self {
+    pub fn gpio_upper(&mut self) -> &mut Self {
         self.0.push(MpsseCmd::GetDataBitsHighbyte.into());
         self
     }
@@ -668,7 +668,7 @@ impl MpsseCmdBuilder {
     ///     .set_gpio_upper(0x00, 0xFF)
     ///     .send_immediate();
     /// ```
-    pub fn send_immediate(mut self) -> Self {
+    pub fn send_immediate(&mut self) -> &mut Self {
         self.0.push(MpsseCmd::SendImmediate.into());
         self
     }
@@ -690,7 +690,7 @@ impl MpsseCmdBuilder {
     ///     .set_gpio_lower(0x8, 0xb)
     ///     .send_immediate();
     /// ```
-    pub fn wait_on_io_high(mut self) -> Self {
+    pub fn wait_on_io_high(&mut self) -> &mut Self {
         self.0.push(MpsseCmd::WaitOnIOHigh.into());
         self
     }
@@ -712,7 +712,7 @@ impl MpsseCmdBuilder {
     ///     .set_gpio_lower(0x8, 0xb)
     ///     .send_immediate();
     /// ```
-    pub fn wait_on_io_low(mut self) -> Self {
+    pub fn wait_on_io_low(&mut self) -> &mut Self {
         self.0.push(MpsseCmd::WaitOnIOLow.into());
         self
     }
@@ -723,7 +723,7 @@ impl MpsseCmdBuilder {
     /// No data is clocked into the device on TDO/DI.
     ///
     /// This will panic for data lengths greater than `u16::MAX + 1`.
-    pub fn clock_data_out(mut self, mode: ClockDataOut, data: &[u8]) -> Self {
+    pub fn clock_data_out(&mut self, mode: ClockDataOut, data: &[u8]) -> &mut Self {
         let mut len = data.len();
         assert!(len <= 65536, "data length cannot exceed u16::MAX + 1");
         len = match len.checked_sub(1) {
@@ -746,7 +746,7 @@ impl MpsseCmdBuilder {
     /// * `mode` - Data clocking mode.
     /// * `len` - Number of bytes to clock in.
     ///   This will panic for values greater than `u16::MAX + 1`.
-    pub fn clock_data_in(mut self, mode: ClockDataIn, mut len: usize) -> Self {
+    pub fn clock_data_in(&mut self, mode: ClockDataIn, mut len: usize) -> &mut Self {
         assert!(len <= 65536, "data length cannot exceed u16::MAX + 1");
         len = match len.checked_sub(1) {
             Some(l) => l,
@@ -760,7 +760,7 @@ impl MpsseCmdBuilder {
     /// Clock data in and out simultaneously.
     ///
     /// This will panic for data lengths greater than `u16::MAX + 1`.
-    pub fn clock_data(mut self, mode: ClockData, data: &[u8]) -> Self {
+    pub fn clock_data(&mut self, mode: ClockData, data: &[u8]) -> &mut Self {
         let mut len = data.len();
         assert!(len <= 65536, "data length cannot exceed u16::MAX + 1");
         len = match len.checked_sub(1) {
@@ -781,7 +781,7 @@ impl MpsseCmdBuilder {
     /// * `data` - Data bits.
     /// * `len` - Number of bits to clock out.
     ///   This will panic for values greater than 8.
-    pub fn clock_bits_out(mut self, mode: ClockBitsOut, data: u8, mut len: u8) -> Self {
+    pub fn clock_bits_out(&mut self, mode: ClockBitsOut, data: u8, mut len: u8) -> &mut Self {
         assert!(len <= 8, "data length cannot exceed 8");
         len = match len.checked_sub(1) {
             Some(l) => l,
@@ -798,7 +798,7 @@ impl MpsseCmdBuilder {
     /// * `mode` - Bit clocking mode.
     /// * `len` - Number of bits to clock in.
     ///   This will panic for values greater than 8.
-    pub fn clock_bits_in(mut self, mode: ClockBitsIn, mut len: u8) -> Self {
+    pub fn clock_bits_in(&mut self, mode: ClockBitsIn, mut len: u8) -> &mut Self {
         assert!(len <= 8, "data length cannot exceed 8");
         len = match len.checked_sub(1) {
             Some(l) => l,
@@ -815,7 +815,7 @@ impl MpsseCmdBuilder {
     /// * `mode` - Bit clocking mode.
     /// * `len` - Number of bits to clock in.
     ///   This will panic for values greater than 8.
-    pub fn clock_bits(mut self, mode: ClockBits, data: u8, mut len: u8) -> Self {
+    pub fn clock_bits(&mut self, mode: ClockBits, data: u8, mut len: u8) -> &mut Self {
         assert!(len <= 8, "data length cannot exceed 8");
         len = match len.checked_sub(1) {
             Some(l) => l,
@@ -835,12 +835,12 @@ impl MpsseCmdBuilder {
     /// * `len` - Number of bits to clock out.
     ///   This will panic for values greater than 7.
     pub fn clock_tms_out(
-        mut self,
+        &mut self,
         mode: ClockTMSOut,
         mut data: u8,
         tdi: bool,
         mut len: u8,
-    ) -> Self {
+    ) -> &mut Self {
         assert!(len <= 7, "data length cannot exceed 7");
         len = match len.checked_sub(1) {
             Some(l) => l,
@@ -862,7 +862,7 @@ impl MpsseCmdBuilder {
     /// * `tdi` - Value to place on TDI while clocking.
     /// * `len` - Number of bits to clock out.
     ///   This will panic for values greater than 7.
-    pub fn clock_tms(mut self, mode: ClockTMS, mut data: u8, tdi: bool, mut len: u8) -> Self {
+    pub fn clock_tms(&mut self, mode: ClockTMS, mut data: u8, tdi: bool, mut len: u8) -> &mut Self {
         assert!(len <= 7, "data length cannot exceed 7");
         len = match len.checked_sub(1) {
             Some(l) => l,

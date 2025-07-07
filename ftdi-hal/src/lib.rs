@@ -233,21 +233,26 @@ impl FtMpsse {
             usb_device.device_version(),
             usb_device.serial_number().unwrap_or(""),
         ) {
-            (0x400, _) | (0x200, "") => ChipType::Bm,
-            (0x200, _) => ChipType::Am,
-            (0x500, _) => ChipType::FT2232C,
-            (0x600, _) => ChipType::R,
+            // (0x400, _) | (0x200, "") => ChipType::Bm,
+            // (0x200, _) => ChipType::Am,
+            // (0x500, _) => ChipType::FT2232C,
+            // (0x600, _) => ChipType::R,
             (0x700, _) => ChipType::FT2232H,
             (0x800, _) => ChipType::FT4232H,
             (0x900, _) => ChipType::FT232H,
-            (0x1000, _) => ChipType::FT230X,
-
+            // (0x1000, _) => ChipType::FT230X,
             (version, _) => {
                 return Err(FtdiError::Other(format!(
-                    "Unkonwn ChipType version:0x{version:x}",
+                    "Unkonwn ChipType version:0x{version:x}"
                 )));
             }
         };
+
+        if !chip_type.mpsse_list().contains(&interface) {
+            return Err(FtdiError::Other(format!(
+                "{chip_type:?} do not has {interface:?}"
+            )));
+        }
 
         let handle = handle.detach_and_claim_interface(interface as u8 - 1)?;
 
@@ -257,8 +262,8 @@ impl FtMpsse {
             lower: Default::default(),
             upper: Default::default(),
         };
-        let cmd = MpsseCmdBuilder::new()
-            .set_gpio_lower(this.lower.value, this.lower.direction)
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.set_gpio_lower(this.lower.value, this.lower.direction)
             .set_gpio_upper(this.upper.value, this.upper.direction)
             .disable_adaptive_data_clocking()
             .disable_loopback()
@@ -274,10 +279,16 @@ impl FtMpsse {
     fn alloc_pin(&mut self, pin: Pin, purpose: PinUse) {
         let (byte, idx) = match pin {
             Pin::Lower(idx) => (&mut self.lower, idx),
-            Pin::Upper(idx) => (&mut self.upper, idx),
+            Pin::Upper(idx) => {
+                assert!(
+                    self.chip_type.has_upper_pin(),
+                    "{:?} do not has upper pin",
+                    self.chip_type
+                );
+                (&mut self.upper, idx)
+            }
         };
         assert!(idx < 8, "Pin index {idx} is out of range 0 - 7");
-
         if let Some(current) = byte.pins[idx] {
             panic!(
                 "Unable to allocate pin {pin:?} for {purpose:?}, pin is already allocated for {current:?}"
@@ -292,20 +303,20 @@ impl FtMpsse {
             Pin::Lower(idx) => {
                 assert!(idx < 8, "Pin index {idx} is out of range 0 - 7");
                 self.lower.pins[idx] = None;
-                self.lower.value &= !(1 << idx);
-                self.lower.direction &= !(1 << idx);
-                let cmd = MpsseCmdBuilder::new()
-                    .set_gpio_lower(self.lower.value, self.lower.direction)
+                self.lower.value &= !(1 << idx); // set value to low
+                self.lower.direction &= !(1 << idx); // set direction to input
+                let mut cmd = MpsseCmdBuilder::new();
+                cmd.set_gpio_lower(self.lower.value, self.lower.direction)
                     .send_immediate();
                 self.write_read(cmd.as_slice(), &mut []).unwrap();
             }
             Pin::Upper(idx) => {
                 assert!(idx < 8, "Pin index {idx} is out of range 0 - 7");
-                self.lower.pins[idx] = None;
-                self.upper.value &= !(1 << idx);
-                self.upper.direction &= !(1 << idx);
-                let cmd = MpsseCmdBuilder::new()
-                    .set_gpio_lower(self.upper.value, self.upper.direction)
+                self.upper.pins[idx] = None;
+                self.upper.value &= !(1 << idx); // set value to low
+                self.upper.direction &= !(1 << idx); // set direction to input
+                let mut cmd = MpsseCmdBuilder::new();
+                cmd.set_gpio_upper(self.upper.value, self.upper.direction)
                     .send_immediate();
                 self.write_read(cmd.as_slice(), &mut []).unwrap();
             }
