@@ -1,8 +1,8 @@
 mod error;
 pub use error::FtdiError;
+use futures_lite::future::{block_on, zip};
 use nusb::transfer::{Control, ControlType, Recipient, RequestBuffer};
 use std::time::Duration;
-use tokio::{join, time::timeout};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ChipType {
@@ -175,7 +175,7 @@ impl FtdiContext {
 
         Ok(())
     }
-    pub(crate) fn write_read(&mut self, write: &[u8], read: &mut [u8]) -> Result<(), FtdiError> {
+    pub(crate) fn write_read(&self, write: &[u8], read: &mut [u8]) -> Result<(), FtdiError> {
         let write = async {
             for batch in write.chunks(self.max_packet_size) {
                 self.handle
@@ -208,10 +208,7 @@ impl FtdiContext {
             }
             Result::<(), FtdiError>::Ok(())
         };
-        let rt = tokio::runtime::Runtime::new()?;
-        let result = rt
-            .block_on(async { timeout(Duration::from_secs(1), async { join!(write, read) }).await })
-            .map_err(|_| FtdiError::Other("timeout".into()))?;
+        let result = block_on(async { zip(write, read).await });
         if result.0.is_err() {
             result.0
         } else if result.1.is_err() {

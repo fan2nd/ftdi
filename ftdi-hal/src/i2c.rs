@@ -103,7 +103,7 @@ impl I2c {
     ) -> Result<(), ErrorKind> {
         // lock at the start to prevent GPIO from being modified while we build
         // the MPSSE command
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
 
         // ST
         let mut mpsse_cmd: MpsseCmdBuilder = MpsseCmdBuilder::new();

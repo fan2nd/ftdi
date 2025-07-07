@@ -166,7 +166,7 @@ use crate::{
 };
 pub use gpio::{InputPin, OutputPin};
 pub use i2c::I2c;
-pub use jtag::{Jtag, SoftJtag};
+pub use jtag::{Jtag, JtagDetect, JtagScan};
 pub use list::list_all_device;
 pub use spi::Spi;
 pub use swd::{Swd, SwdOp, SwdPort};
@@ -259,7 +259,7 @@ impl FtMpsse {
 
         let handle = handle.detach_and_claim_interface(interface as u8 - 1)?;
 
-        let mut this = Self {
+        let this = Self {
             ft: FtdiContext::new(handle, interface, max_packet_size).into_mpsse(mask)?,
             chip_type,
             lower: Default::default(),
@@ -273,7 +273,7 @@ impl FtMpsse {
         Ok(this)
     }
     /// Write mpsse command and read response
-    fn write_read(&mut self, write: &[u8], read: &mut [u8]) -> Result<(), FtdiError> {
+    fn write_read(&self, write: &[u8], read: &mut [u8]) -> Result<(), FtdiError> {
         self.ft.write_read(write, read)
     }
     /// Allocate a pin for a specific use.

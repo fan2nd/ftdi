@@ -122,7 +122,7 @@ impl SpiBus<u8> for Spi {
             .clock_data_in(self.cmd.read, words.len())
             .send_immediate();
 
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.write_read(cmd.as_slice(), words)?;
 
         Ok(())
@@ -133,7 +133,7 @@ impl SpiBus<u8> for Spi {
             .clock_data_out(self.cmd.write, words)
             .send_immediate();
 
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.write_read(cmd.as_slice(), &mut [])?;
 
         Ok(())
@@ -148,7 +148,7 @@ impl SpiBus<u8> for Spi {
             .clock_data(self.cmd.write_read, words)
             .send_immediate();
 
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
 
         lock.write_read(cmd.as_slice(), words)?;
 
@@ -160,7 +160,7 @@ impl SpiBus<u8> for Spi {
             .clock_data(self.cmd.write_read, write)
             .send_immediate();
 
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.write_read(cmd.as_slice(), read)?;
 
         Ok(())

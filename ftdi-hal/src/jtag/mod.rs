@@ -1,4 +1,6 @@
-mod jtag;
-mod soft_jtag;
-pub use jtag::Jtag;
-pub use soft_jtag::SoftJtag;
+mod hw_jtag;
+mod jtag_detect;
+mod jtag_scan;
+pub use hw_jtag::Jtag;
+pub use jtag_detect::JtagDetect;
+pub use jtag_scan::JtagScan;

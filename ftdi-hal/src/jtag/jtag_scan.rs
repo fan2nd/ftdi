@@ -1,10 +1,7 @@
 use crate::{FtMpsse, OutputPin, Pin, PinUse, ftdaye::FtdiError, mpsse::MpsseCmdBuilder};
-use std::{
-    sync::{Arc, Mutex},
-    u32,
-};
+use std::sync::{Arc, Mutex};
 
-pub struct SoftJtag {
+pub struct JtagScan {
     mtx: Arc<Mutex<FtMpsse>>,
     tck: usize,
     tdi: usize,
@@ -12,7 +9,7 @@ pub struct SoftJtag {
     tms: usize,
     direction: Option<[OutputPin; 4]>,
 }
-impl Drop for SoftJtag {
+impl Drop for JtagScan {
     fn drop(&mut self) {
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.free_pin(Pin::Lower(self.tck));
@@ -21,7 +18,7 @@ impl Drop for SoftJtag {
         lock.free_pin(Pin::Lower(self.tms));
     }
 }
-impl SoftJtag {
+impl JtagScan {
     /// Only can use lower pins
     pub fn new(
         mtx: Arc<Mutex<FtMpsse>>,
@@ -70,7 +67,7 @@ impl SoftJtag {
     fn clock_tck(&self, tms_val: u8, tdi_val: u8) -> Result<bool, FtdiError> {
         assert!(tms_val == 0 || tms_val == 1);
         assert!(tdi_val == 0 || tdi_val == 1);
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         let cmd = MpsseCmdBuilder::new()
             .set_gpio_lower(
                 lock.lower.value | tdi_val << self.tdi | tms_val << self.tms,
@@ -95,7 +92,7 @@ impl SoftJtag {
     fn clock_tcks(&self, tms_val: u8, tdi_val: u8, count: usize) -> Result<Vec<bool>, FtdiError> {
         assert!(tms_val == 0 || tms_val == 1);
         assert!(tdi_val == 0 || tdi_val == 1);
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         let mut cmd = MpsseCmdBuilder::new().set_gpio_lower(
             lock.lower.value | tdi_val << self.tdi | tms_val << self.tms,
             lock.lower.direction,

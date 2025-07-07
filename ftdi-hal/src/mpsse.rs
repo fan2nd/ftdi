@@ -234,6 +234,7 @@ impl From<ClockBitsIn> for u8 {
 ///
 /// [`clock_data`]: MpsseCmdBuilder::clock_data
 #[repr(u8)]
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum ClockData {
     /// MSB first, data in on positive edge, data out on negative edge.
@@ -258,6 +259,7 @@ impl From<ClockData> for u8 {
 ///
 /// [`clock_bits`]: MpsseCmdBuilder::clock_bits
 #[repr(u8)]
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum ClockBits {
     /// MSB first, data in on positive edge, data out on negative edge.

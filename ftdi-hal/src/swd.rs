@@ -66,7 +66,7 @@ impl Swd {
         const ONES: [u8; 8] = [0xff; 8]; // 64 ones
         const SEQUENCE: [u8; 2] = [0x79, 0xe7]; // Activation pattern
 
-        let mut lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
+        let lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
         let cmd = MpsseCmdBuilder::new()
             .set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO)
             .clock_data_out(ClockDataOut::LsbPos, &ONES) // >50 ones (LSB first)
@@ -97,7 +97,7 @@ impl Swd {
     pub fn read(&self, port: SwdPort, addr: u8) -> Result<u32, FtdiError> {
         let request = Self::build_request(port, SwdOp::Read, addr);
         let response: &mut [u8] = &mut [0];
-        let mut lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
+        let lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
         // Send request (8 bits)
         let cmd = MpsseCmdBuilder::new()
             .set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
@@ -146,7 +146,7 @@ impl Swd {
     pub fn write(&self, port: SwdPort, addr: u8, value: u32) -> Result<(), FtdiError> {
         let request = Self::build_request(port, SwdOp::Write, addr);
         let response: &mut [u8] = &mut [0];
-        let mut lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
+        let lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
         let cmd = MpsseCmdBuilder::new()
             .set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
             .clock_data_out(ClockDataOut::LsbPos, &[request]) // Send request

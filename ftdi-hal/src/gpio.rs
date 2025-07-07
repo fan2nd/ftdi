@@ -144,7 +144,7 @@ impl InputPin {
     }
 
     pub(crate) fn get(&self) -> Result<bool, FtdiError> {
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
 
         let mut buffer = [0u8; 1];
         let cmd = MpsseCmdBuilder::new();

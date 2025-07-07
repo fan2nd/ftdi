@@ -1,8 +1,6 @@
 use crate::ftdaye::FtdiError;
-use crate::mpsse::{ClockData, ClockDataIn, ClockDataOut, ClockTMS, ClockTMSOut, MpsseCmdBuilder};
-use crate::{BitOrder, FtMpsse, OutputPin, Pin, PinUse};
-use std::fs::read;
-use std::ops::Deref;
+use crate::mpsse::{ClockData, ClockTMS, ClockTMSOut, MpsseCmdBuilder};
+use crate::{FtMpsse, OutputPin, Pin, PinUse};
 use std::sync::{Arc, Mutex};
 
 pub struct JtagCmdBuilder(MpsseCmdBuilder);
@@ -95,7 +93,7 @@ impl Jtag {
             lock.write_read(cmd.as_slice(), &mut [])?;
         }
         Ok(Self {
-            mtx: mtx,
+            mtx,
             direction: Default::default(),
         })
     }
@@ -119,14 +117,14 @@ impl Jtag {
     }
     pub fn goto_idle(&self) -> Result<(), FtdiError> {
         let cmd = JtagCmdBuilder::new().any2idle();
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.write_read(cmd.as_slice(), &mut [])?;
         Ok(())
     }
     pub fn scan_with(&self, tdi: bool) -> Result<Vec<Option<u32>>, FtdiError> {
         const ID_LEN: usize = 32;
         let cmd = JtagCmdBuilder::new().any2idle().idle2dr();
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.write_read(cmd.as_slice(), &mut [])?;
         let tdi = if tdi { vec![0xff; 4] } else { vec![0; 4] };
         // 移入0并读取TDO，持续直到检测到连续32个0
