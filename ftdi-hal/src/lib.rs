@@ -260,6 +260,8 @@ impl FtMpsse {
         let cmd = MpsseCmdBuilder::new()
             .set_gpio_lower(this.lower.value, this.lower.direction)
             .set_gpio_upper(this.upper.value, this.upper.direction)
+            .disable_adaptive_data_clocking()
+            .disable_loopback()
             .send_immediate();
         this.write_read(cmd.as_slice(), &mut [])?;
         Ok(this)

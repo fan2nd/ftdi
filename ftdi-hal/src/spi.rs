@@ -85,8 +85,6 @@ impl Spi {
 
             let cmd = MpsseCmdBuilder::new()
                 .set_gpio_lower(lock.lower.value, lock.lower.direction)
-                .disable_adaptive_data_clocking()
-                .disable_loopback()
                 .disable_3phase_data_clocking()
                 .send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
