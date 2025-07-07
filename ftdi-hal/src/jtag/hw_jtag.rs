@@ -174,10 +174,10 @@ impl Jtag {
         lock.write_read(cmd.as_slice(), &mut [])?;
         Ok(idcodes)
     }
-    fn read_reg(&self,ir:u32,irlen:usize,drlen:usize)->Result<u128,FtdiError>{
+    fn read_reg(&self, ir: u32, irlen: usize, drlen: usize) -> Result<u128, FtdiError> {
         todo!()
     }
-    fn write_reg(&self,ir:u32,irlen:usize,dr:u128,drlen:usize)->Result<(),FtdiError>{
+    fn write_reg(&self, ir: u32, irlen: usize, dr: u128, drlen: usize) -> Result<(), FtdiError> {
         todo!()
     }
 }
