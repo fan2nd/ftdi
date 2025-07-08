@@ -1,5 +1,4 @@
 //! This is an [embedded-hal] implementation for the FTDI chips
-//! that use the [libftd2xx] or [ftdi-rs] drivers.
 //!
 //! This enables development of embedded device drivers without the use of
 //! a microcontroller. The FTDI devices interface with a PC via USB, and
@@ -13,7 +12,6 @@
 //!
 //! # Quickstart
 //!
-//! * Enable the "libftd2xx-static" feature flag to use static linking with libftd2xx driver.
 //! * Linux users only: Add [udev rules].
 //!
 //! # Limitations
@@ -117,9 +115,6 @@ impl FtMpsse {
                 )));
             }
         };
-        if chip_type == ChipType::FT2232C {
-            log::warn!("{chip_type:?} not test!");
-        }
         if !chip_type.mpsse_list().contains(&interface) {
             return Err(FtdiError::Other(format!(
                 "{chip_type:?} do not has {interface:?}"
