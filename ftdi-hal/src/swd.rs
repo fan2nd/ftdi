@@ -12,14 +12,20 @@ const SCK: u8 = 1 << 0;
 const DIO: u8 = 1 << 1;
 
 #[derive(Debug, Clone, Copy)]
-pub enum SwdPort {
-    Dp = 0,
-    Ap = 1,
+pub enum SwdAddr {
+    Dp(u8),
+    Ap(u8),
 }
-#[derive(Debug, Clone, Copy)]
-pub enum SwdOp {
-    Read = 1,
-    Write = 0,
+impl From<SwdAddr> for u8 {
+    fn from(value: SwdAddr) -> Self {
+        // LSB Format: [Park(1), Stop(0), Parity, A[3:2], RnW, APnDP, Start(1)]
+        const PORT_MASK: u8 = 1 << 1;
+        const ADDR_MASK: u8 = 0b11 << 2;
+        match value {
+            SwdAddr::Dp(addr) => addr << 1 & ADDR_MASK,
+            SwdAddr::Ap(addr) => addr << 1 & ADDR_MASK | PORT_MASK,
+        }
+    }
 }
 pub struct Swd {
     /// Parent FTDI device.
@@ -79,14 +85,15 @@ impl Swd {
         Ok(())
     }
     /// Build SWD request packet (lsb 8 bits)
-    /// Format: low[Start(1), APnDP, RnW, A[2:3], Parity, Stop(0), Park(1)]high
-    fn build_request(port: SwdPort, op: SwdOp, addr: u8) -> u8 {
-        let addr = (addr >> 2) & 0x03; // Extract A[3:2]
-        let mut request = 0x81; // Start(1) + Park(1) with Stop(0)
-
-        request |= (port as u8) << 1; // Set APnDP bit (position 1)
-        request |= (op as u8) << 2; // Set RnW bit (position 2)
-        request |= addr << 3; // Set address bits (positions 3-4)
+    /// Timing Sequence: [Start(1), APnDP, RnW, A[2:3], Parity, Stop(0), Park(1)]
+    /// LSB Format: [Park(1), Stop(0), Parity, A[3:2], RnW, APnDP, Start(1)]
+    fn build_request(is_read: bool, addr: SwdAddr) -> u8 {
+        const START_MASK: u8 = 1 << 0;
+        const PARK_MASK: u8 = 1 << 7;
+        const READ_MASK: u8 = 1 << 2;
+        let mut request = START_MASK | PARK_MASK; // Start(1) + Park(1) with Stop(0)
+        request |= if is_read { READ_MASK } else { 0 }; // Set RnW bit (position 2)
+        request |= u8::from(addr);
 
         // The parity check is made over the APnDP, RnW and A[2:3] bits. If, of these four bits:
         // • the number of bits set to 1 is odd, then the parity bit is set to 1
@@ -97,8 +104,8 @@ impl Swd {
         request
     }
     /// Perform SWD read operation
-    pub fn read(&self, port: SwdPort, addr: u8) -> Result<u32, FtdiError> {
-        let request = Self::build_request(port, SwdOp::Read, addr);
+    pub fn read(&self, addr: SwdAddr) -> Result<u32, FtdiError> {
+        let request = Self::build_request(true, addr);
         let response: &mut [u8] = &mut [0];
         let lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
         // Send request (8 bits)
@@ -146,8 +153,8 @@ impl Swd {
         Ok(value)
     }
 
-    pub fn write(&self, port: SwdPort, addr: u8, value: u32) -> Result<(), FtdiError> {
-        let request = Self::build_request(port, SwdOp::Write, addr);
+    pub fn write(&self, addr: SwdAddr, value: u32) -> Result<(), FtdiError> {
+        let request = Self::build_request(false, addr);
         let response: &mut [u8] = &mut [0];
         let lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
         let mut cmd = MpsseCmdBuilder::new();

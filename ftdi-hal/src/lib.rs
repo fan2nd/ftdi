@@ -39,7 +39,7 @@ pub use jtag::{Jtag, JtagDetectTdi, JtagDetectTdo};
 pub use list::list_all_device;
 use mpsse::MpsseCmdBuilder;
 pub use spi::{Spi, SpiMode};
-pub use swd::{Swd, SwdOp, SwdPort};
+pub use swd::{Swd, SwdAddr};
 
 /// Pin number
 #[derive(Debug, Copy, Clone)]

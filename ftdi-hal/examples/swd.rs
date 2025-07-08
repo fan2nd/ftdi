@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use ftdi_hal::{FtMpsse, Swd, SwdPort, list_all_device};
+use ftdi_hal::{FtMpsse, Swd, SwdAddr, list_all_device};
 
 fn main() {
     env_logger::init();
@@ -10,6 +10,6 @@ fn main() {
     let mtx = Arc::new(Mutex::new(mpsse));
     let swd = Swd::new(mtx).unwrap();
     swd.enable().unwrap();
-    let idcode = swd.read(SwdPort::Dp, 0x00).unwrap();
+    let idcode = swd.read(SwdAddr::Dp(0)).unwrap();
     println!("idcode:{idcode:#?}")
 }
