@@ -22,8 +22,6 @@
 
 #![forbid(unsafe_code)]
 
-pub use eh1;
-
 mod ftdaye;
 mod gpio;
 mod i2c;

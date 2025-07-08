@@ -51,10 +51,6 @@ impl From<SpiMode> for SpiCommond {
 /// FTDI SPI bus.
 ///
 /// In embedded-hal version 1 this represents an exclusive SPI bus.
-///
-/// This is created by calling [`FtHal::spi`].
-///
-/// [`FtHal::spi`]: crate::FtHal::spi
 pub struct Spi {
     /// Parent FTDI device.
     mtx: Arc<Mutex<FtMpsse>>,

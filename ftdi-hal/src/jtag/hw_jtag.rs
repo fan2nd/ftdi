@@ -1,15 +1,13 @@
 use crate::ftdaye::FtdiError;
 use crate::mpsse::{ClockData, ClockTMS, ClockTMSOut, MpsseCmdBuilder};
 use crate::{FtMpsse, OutputPin, Pin, PinUse};
+use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
 pub struct JtagCmdBuilder(MpsseCmdBuilder);
 impl JtagCmdBuilder {
     fn new() -> Self {
         JtagCmdBuilder(MpsseCmdBuilder::new())
-    }
-    fn as_slice(&self) -> &[u8] {
-        self.0.as_slice()
     }
     fn any2idle(&mut self) -> &mut Self {
         self.0
@@ -51,7 +49,17 @@ impl JtagCmdBuilder {
         self
     }
 }
-
+impl Deref for JtagCmdBuilder {
+    type Target = MpsseCmdBuilder;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl DerefMut for JtagCmdBuilder {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 pub struct Jtag {
     /// Parent FTDI device.
     mtx: Arc<Mutex<FtMpsse>>,
@@ -108,7 +116,7 @@ impl Jtag {
     }
     pub fn goto_idle(&self) -> Result<(), FtdiError> {
         let mut cmd = JtagCmdBuilder::new();
-        cmd.any2idle();
+        cmd.any2idle().send_immediate();
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.write_read(cmd.as_slice(), &mut [])?;
         Ok(())
@@ -162,9 +170,8 @@ impl Jtag {
         }
 
         // 退出Shift-DR状态
-        let mut cmd = JtagCmdBuilder::new();
-        cmd.any2idle();
-        lock.write_read(cmd.as_slice(), &mut [])?;
+        drop(lock);
+        self.goto_idle()?;
         Ok(idcodes)
     }
     fn read_reg(&self, ir: u32, irlen: usize, drlen: usize) -> Result<u128, FtdiError> {

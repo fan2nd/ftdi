@@ -13,10 +13,6 @@ const BITS_IN: ClockBitsIn = ClockBitsIn::MsbPos;
 const BITS_OUT: ClockBitsOut = ClockBitsOut::MsbNeg;
 
 /// FTDI I2C interface.
-///
-/// This is created by calling [`FtHal::i2c`].
-///
-/// [`FtHal::i2c`]: crate::FtHal::i2c
 pub struct I2c {
     /// Parent FTDI device.
     mtx: Arc<Mutex<FtMpsse>>,
