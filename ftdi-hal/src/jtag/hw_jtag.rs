@@ -1,8 +1,19 @@
 use crate::ftdaye::FtdiError;
-use crate::mpsse::{ClockData, ClockTMS, ClockTMSOut, MpsseCmdBuilder};
+use crate::mpsse::{
+    ClockBits, ClockBitsIn, ClockBitsOut, ClockBytes, ClockBytesIn, ClockBytesOut, ClockTMS,
+    ClockTMSOut, MpsseCmdBuilder,
+};
 use crate::{FtMpsse, OutputPin, Pin, PinUse};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
+
+const BYTES_WRITE: ClockBytesOut = ClockBytesOut::LsbNeg;
+const BYTES_READ: ClockBytesIn = ClockBytesIn::LsbPos;
+const BYTES_WRITE_READ: ClockBytes = ClockBytes::LsbPosIn;
+
+const BITS_WRITE: ClockBitsOut = ClockBitsOut::LsbNeg;
+const BITS_READ: ClockBitsIn = ClockBitsIn::LsbPos;
+const BITS_WRITE_READ: ClockBits = ClockBits::LsbPosIn;
 
 pub struct JtagCmdBuilder(MpsseCmdBuilder);
 impl JtagCmdBuilder {
@@ -136,7 +147,7 @@ impl Jtag {
 
         'outer: loop {
             let mut cmd = MpsseCmdBuilder::new();
-            cmd.clock_data(ClockData::LsbPosIn, &tdi).send_immediate();
+            cmd.clock_data(BYTES_WRITE_READ, &tdi).send_immediate();
             let read_buf = &mut [0; 4];
             lock.write_read(cmd.as_slice(), read_buf)?;
             let tdos: Vec<_> = read_buf
@@ -174,10 +185,12 @@ impl Jtag {
         self.goto_idle()?;
         Ok(idcodes)
     }
-    fn read_reg(&self, ir: u32, irlen: usize, drlen: usize) -> Result<u128, FtdiError> {
+    fn read_reg(&self, ir: &[u8], irlen: usize, drlen: usize) -> Result<u128, FtdiError> {
+        let mut cmd = JtagCmdBuilder::new();
+        cmd.idle2ir();
         todo!()
     }
-    fn write_reg(&self, ir: u32, irlen: usize, dr: u128, drlen: usize) -> Result<(), FtdiError> {
+    fn write_reg(&self, ir: &[u8], irlen: usize, dr: u128, drlen: usize) -> Result<(), FtdiError> {
         todo!()
     }
 }

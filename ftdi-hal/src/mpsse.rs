@@ -6,14 +6,14 @@
 /// Exported for use by [`mpsse`] macro. May also be used for manual command array construction.
 ///
 /// Data clocking MPSSE commands are broken out into separate enums for API ergonomics:
-/// * [`ClockDataOut`]
+/// * [`ClockBytesOut`]
 /// * [`ClockBitsOut`]
-/// * [`ClockDataIn`]
+/// * [`ClockBytesIn`]
 /// * [`ClockBitsIn`]
-/// * [`ClockData`]
+/// * [`ClockBytes`]
 /// * [`ClockBits`]
-#[derive(Debug, Copy, Clone)]
 #[repr(u8)]
+#[derive(Debug, Copy, Clone)]
 #[non_exhaustive]
 pub enum MpsseCmd {
     /// Used by [`set_gpio_lower`][`MpsseCmdBuilder::set_gpio_lower`].
@@ -51,12 +51,6 @@ pub enum MpsseCmd {
     // EnableDriveOnlyZero = 0x9E,
 }
 
-impl From<MpsseCmd> for u8 {
-    fn from(val: MpsseCmd) -> Self {
-        val as u8
-    }
-}
-
 /// Modes for clocking data out of the FTDI device.
 ///
 /// This is an argument to the [`clock_data_out`] method.
@@ -64,7 +58,7 @@ impl From<MpsseCmd> for u8 {
 /// [`clock_data_out`]: MpsseCmdBuilder::clock_data_out
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
-pub enum ClockDataOut {
+pub enum ClockBytesOut {
     /// Positive clock edge MSB first.
     ///
     /// The data is sent MSB first.
@@ -125,12 +119,6 @@ pub enum ClockBitsOut {
     LsbNeg = 0x1B,
 }
 
-impl From<ClockBitsOut> for u8 {
-    fn from(value: ClockBitsOut) -> u8 {
-        value as u8
-    }
-}
-
 /// Modes for clocking data into the FTDI device.
 ///
 /// This is an argument to the [`clock_data_in`] method.
@@ -138,7 +126,7 @@ impl From<ClockBitsOut> for u8 {
 /// [`clock_data_in`]: MpsseCmdBuilder::clock_data_in
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
-pub enum ClockDataIn {
+pub enum ClockBytesIn {
     /// Positive clock edge MSB first.
     ///
     /// The first bit in will be the MSB of the first byte and so on.
@@ -163,12 +151,6 @@ pub enum ClockDataIn {
     ///
     /// The data will be sampled on the falling edge of the CLK pin.
     LsbNeg = 0x2C,
-}
-
-impl From<ClockDataIn> for u8 {
-    fn from(value: ClockDataIn) -> u8 {
-        value as u8
-    }
 }
 
 /// Modes for clocking data bits into the FTDI device.
@@ -217,12 +199,6 @@ pub enum ClockBitsIn {
     LsbNeg = 0x2E,
 }
 
-impl From<ClockBitsIn> for u8 {
-    fn from(value: ClockBitsIn) -> u8 {
-        value as u8
-    }
-}
-
 /// Modes for clocking data in and out of the FTDI device.
 ///
 /// This is an argument to the [`clock_data`] method.
@@ -231,7 +207,7 @@ impl From<ClockBitsIn> for u8 {
 #[repr(u8)]
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Copy, Clone)]
-pub enum ClockData {
+pub enum ClockBytes {
     /// MSB first, data in on positive edge, data out on negative edge.
     MsbPosIn = 0x31,
     /// MSB first, data in on negative edge, data out on positive edge.
@@ -240,12 +216,6 @@ pub enum ClockData {
     LsbPosIn = 0x39,
     /// LSB first, data in on negative edge, data out on positive edge.
     LsbNegIn = 0x3C,
-}
-
-impl From<ClockData> for u8 {
-    fn from(value: ClockData) -> u8 {
-        value as u8
-    }
 }
 
 /// Modes for clocking data bits in and out of the FTDI device.
@@ -267,12 +237,6 @@ pub enum ClockBits {
     LsbNegIn = 0x3E,
 }
 
-impl From<ClockBits> for u8 {
-    fn from(value: ClockBits) -> u8 {
-        value as u8
-    }
-}
-
 /// Modes for clocking bits out on TMS for JTAG mode.
 ///
 /// This is an argument to the [`clock_tms_out`] method.
@@ -285,12 +249,6 @@ pub enum ClockTMSOut {
     PosEdge = 0x4A,
     /// LSB first, TMS out on negative edge
     NegEdge = 0x4B,
-}
-
-impl From<ClockTMSOut> for u8 {
-    fn from(value: ClockTMSOut) -> u8 {
-        value as u8
-    }
 }
 
 /// Modes for clocking bits out on TMS for JTAG mode while reading TDO.
@@ -309,12 +267,6 @@ pub enum ClockTMS {
     NegTMSPosTDO = 0x6B,
     /// LSB first, TMS out on negative edge, TDO in on negative edge.
     NegTMSNegTDO = 0x6F,
-}
-
-impl From<ClockTMS> for u8 {
-    fn from(value: ClockTMS) -> u8 {
-        value as u8
-    }
 }
 
 /// FTDI Multi-Protocol Synchronous Serial Engine (MPSSE) command builder.
@@ -496,7 +448,7 @@ impl MpsseCmdBuilder {
     }
 
     /// Make controller wait until GPIOL1 or I/O1 is high before running further commands.
-    /// use crate::mpsse::{ClockData, MpsseCmdBuilder};
+    /// use crate::mpsse::{ClockBytes, MpsseCmdBuilder};
     ///
     /// // Assume a "chip ready" signal is connected to GPIOL1. This signal is pulled high
     /// // shortly after AD3 (chip select) is pulled low. Data will not be clocked out until
@@ -507,7 +459,7 @@ impl MpsseCmdBuilder {
     }
 
     /// Make controller wait until GPIOL1 or I/O1 is low before running further commands.
-    /// use crate::mpsse::{ClockData, MpsseCmdBuilder};
+    /// use crate::mpsse::{ClockBytes, MpsseCmdBuilder};
     ///
     /// // Assume a "chip ready" signal is connected to GPIOL1. This signal is pulled low
     /// // shortly after AD3 (chip select) is pulled low. Data will not be clocked out until
@@ -523,7 +475,7 @@ impl MpsseCmdBuilder {
     /// No data is clocked into the device on TDO/DI.
     ///
     /// This will panic for data lengths greater than `u16::MAX + 1`.
-    pub fn clock_data_out(&mut self, mode: ClockDataOut, data: &[u8]) -> &mut Self {
+    pub fn clock_data_out(&mut self, mode: ClockBytesOut, data: &[u8]) -> &mut Self {
         let mut len = data.len();
         assert!(len <= 65536, "data length cannot exceed u16::MAX + 1");
         len = match len.checked_sub(1) {
@@ -546,7 +498,7 @@ impl MpsseCmdBuilder {
     /// * `mode` - Data clocking mode.
     /// * `len` - Number of bytes to clock in.
     ///   This will panic for values greater than `u16::MAX + 1`.
-    pub fn clock_data_in(&mut self, mode: ClockDataIn, mut len: usize) -> &mut Self {
+    pub fn clock_data_in(&mut self, mode: ClockBytesIn, mut len: usize) -> &mut Self {
         assert!(len <= 65536, "data length cannot exceed u16::MAX + 1");
         len = match len.checked_sub(1) {
             Some(l) => l,
@@ -560,7 +512,7 @@ impl MpsseCmdBuilder {
     /// Clock data in and out simultaneously.
     ///
     /// This will panic for data lengths greater than `u16::MAX + 1`.
-    pub fn clock_data(&mut self, mode: ClockData, data: &[u8]) -> &mut Self {
+    pub fn clock_data(&mut self, mode: ClockBytes, data: &[u8]) -> &mut Self {
         let mut len = data.len();
         assert!(len <= 65536, "data length cannot exceed u16::MAX + 1");
         len = match len.checked_sub(1) {

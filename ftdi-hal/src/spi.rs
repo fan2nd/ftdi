@@ -1,5 +1,5 @@
 use crate::ftdaye::FtdiError;
-use crate::mpsse::{ClockData, ClockDataIn, ClockDataOut, MpsseCmdBuilder};
+use crate::mpsse::{ClockBytes, ClockBytesIn, ClockBytesOut, MpsseCmdBuilder};
 use crate::{FtMpsse, Pin, PinUse};
 use eh1::spi::{Error, ErrorKind, ErrorType, SpiBus};
 use std::sync::{Arc, Mutex};
@@ -13,29 +13,29 @@ pub enum SpiMode {
 }
 #[derive(Debug, Clone, Copy)]
 struct SpiCommond {
-    write_read: ClockData,
-    read: ClockDataIn,
-    write: ClockDataOut,
+    write_read: ClockBytes,
+    read: ClockBytesIn,
+    write: ClockBytesOut,
 }
 const MSB_MODE0: SpiCommond = SpiCommond {
-    write_read: ClockData::MsbPosIn,
-    read: ClockDataIn::MsbPos,
-    write: ClockDataOut::MsbNeg,
+    write_read: ClockBytes::MsbPosIn,
+    read: ClockBytesIn::MsbPos,
+    write: ClockBytesOut::MsbNeg,
 };
 const LSB_MODE0: SpiCommond = SpiCommond {
-    write_read: ClockData::LsbPosIn,
-    read: ClockDataIn::LsbPos,
-    write: ClockDataOut::LsbNeg,
+    write_read: ClockBytes::LsbPosIn,
+    read: ClockBytesIn::LsbPos,
+    write: ClockBytesOut::LsbNeg,
 };
 const MSB_MODE2: SpiCommond = SpiCommond {
-    write_read: ClockData::MsbNegIn,
-    read: ClockDataIn::MsbNeg,
-    write: ClockDataOut::MsbPos,
+    write_read: ClockBytes::MsbNegIn,
+    read: ClockBytesIn::MsbNeg,
+    write: ClockBytesOut::MsbPos,
 };
 const LSB_MODE2: SpiCommond = SpiCommond {
-    write_read: ClockData::LsbNegIn,
-    read: ClockDataIn::LsbNeg,
-    write: ClockDataOut::LsbPos,
+    write_read: ClockBytes::LsbNegIn,
+    read: ClockBytesIn::LsbNeg,
+    write: ClockBytesOut::LsbPos,
 };
 impl From<SpiMode> for SpiCommond {
     fn from(value: SpiMode) -> Self {

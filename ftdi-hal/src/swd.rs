@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use crate::{
     FtMpsse, Pin, PinUse,
     ftdaye::FtdiError,
-    mpsse::{ClockBitsIn, ClockBitsOut, ClockDataIn, ClockDataOut, MpsseCmdBuilder},
+    mpsse::{ClockBitsIn, ClockBitsOut, ClockBytesIn, ClockBytesOut, MpsseCmdBuilder},
 };
 
 /// SCK bitmask
@@ -70,9 +70,9 @@ impl Swd {
         let lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
         let mut cmd = MpsseCmdBuilder::new();
         cmd.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO)
-            .clock_data_out(ClockDataOut::LsbPos, &ONES) // >50 ones (LSB first)
-            .clock_data_out(ClockDataOut::MsbPos, &SEQUENCE) // Activation pattern (MSB first)
-            .clock_data_out(ClockDataOut::LsbPos, &ONES) // >50 ones (LSB first)
+            .clock_data_out(ClockBytesOut::LsbPos, &ONES) // >50 ones (LSB first)
+            .clock_data_out(ClockBytesOut::MsbPos, &SEQUENCE) // Activation pattern (MSB first)
+            .clock_data_out(ClockBytesOut::LsbPos, &ONES) // >50 ones (LSB first)
             .send_immediate();
 
         lock.write_read(cmd.as_slice(), &mut [])?;
@@ -104,7 +104,7 @@ impl Swd {
         // Send request (8 bits)
         let mut cmd = MpsseCmdBuilder::new();
         cmd.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
-            .clock_data_out(ClockDataOut::LsbPos, &[request]) // // Send request
+            .clock_data_out(ClockBytesOut::LsbPos, &[request]) // // Send request
             .set_gpio_lower(lock.lower.value, lock.lower.direction | SCK) // DIO as input
             .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Output2Input
             .clock_bits_in(ClockBitsIn::LsbNeg, 3) // Read ACK (3 bits)
@@ -129,7 +129,7 @@ impl Swd {
         // Read data (32 bits) + parity (1 bit) = 33 bits
         let mut data = [0u8; 5]; // 33 bits = 5 bytes
         let mut cmd = MpsseCmdBuilder::new();
-        cmd.clock_data_in(ClockDataIn::LsbNeg, 4) // 32-bit data
+        cmd.clock_data_in(ClockBytesIn::LsbNeg, 4) // 32-bit data
             .clock_bits_in(ClockBitsIn::LsbNeg, 1) // 1-bit parity
             .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Input2Output
             .send_immediate();
@@ -152,7 +152,7 @@ impl Swd {
         let lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
         let mut cmd = MpsseCmdBuilder::new();
         cmd.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
-            .clock_data_out(ClockDataOut::LsbPos, &[request]) // Send request
+            .clock_data_out(ClockBytesOut::LsbPos, &[request]) // Send request
             .set_gpio_lower(lock.lower.value, lock.lower.direction | SCK) // DIO as input
             .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Output2Input
             .clock_bits_in(ClockBitsIn::LsbNeg, 3) // Read ACK (3 bits)
@@ -178,7 +178,7 @@ impl Swd {
         // Send data (33 bits)
         let mut cmd = MpsseCmdBuilder::new();
         cmd.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
-            .clock_data_out(ClockDataOut::LsbPos, &data)
+            .clock_data_out(ClockBytesOut::LsbPos, &data)
             .clock_bits_out(ClockBitsOut::LsbPos, parity, 1)
             .send_immediate();
         lock.write_read(cmd.as_slice(), &mut [])?;
