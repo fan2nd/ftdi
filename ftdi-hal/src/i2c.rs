@@ -58,11 +58,13 @@ impl I2c {
                 .send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
         }
-
-        Ok(I2c {
+        let this = I2c {
             mtx,
             start_stop_cmds: 3,
-        })
+        };
+        log::info!("IIC default 100Khz");
+        this.set_frequency(100_000)?;
+        Ok(this)
     }
 
     /// Set the length of start and stop conditions.
@@ -89,6 +91,12 @@ impl I2c {
     /// ```
     pub fn set_stop_start_len(&mut self, start_stop_cmds: usize) {
         self.start_stop_cmds = start_stop_cmds
+    }
+
+    pub fn set_frequency(&self, frequency_hz: usize) -> Result<(), FtdiError> {
+        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        lock.set_frequency(frequency_hz * 3 / 2)?;
+        Ok(())
     }
 
     fn transaction(

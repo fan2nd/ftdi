@@ -23,7 +23,7 @@ fn main() {
                 couple[0], couple[1], couple[2], couple[3],
             );
             let ids_scan0 = softjtag.scan_with(0).unwrap();
-            if ids_scan0.len() == ids_scan1.len() {
+            if ids_scan0.len() <= ids_scan1.len() {
                 println!("!!!!!! tdi is not correct");
             } else {
                 println!("!!!!!! Found Devices:{ids_scan1:x?}");
