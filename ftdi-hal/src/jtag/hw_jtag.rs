@@ -193,4 +193,13 @@ impl Jtag {
     fn write_reg(&self, ir: &[u8], irlen: usize, dr: u128, drlen: usize) -> Result<(), FtdiError> {
         todo!()
     }
+    fn write_read(
+        &self,
+        ir: &[u8],
+        irlen: usize,
+        dr: u128,
+        drlen: usize,
+    ) -> Result<Vec<u8>, FtdiError> {
+        todo!()
+    }
 }
