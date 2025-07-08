@@ -11,7 +11,8 @@
 /// * [`ClockDataIn`]
 /// * [`ClockBitsIn`]
 /// * [`ClockData`]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+/// * [`ClockBits`]
+#[derive(Debug, Copy, Clone)]
 #[repr(u8)]
 #[non_exhaustive]
 pub enum MpsseCmd {
@@ -62,7 +63,7 @@ impl Into<u8> for MpsseCmd {
 ///
 /// [`clock_data_out`]: MpsseCmdBuilder::clock_data_out
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub enum ClockDataOut {
     /// Positive clock edge MSB first.
     ///
@@ -102,7 +103,7 @@ impl From<ClockDataOut> for u8 {
 ///
 /// [`clock_bits_out`]: MpsseCmdBuilder::clock_bits_out
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub enum ClockBitsOut {
     /// Positive clock edge MSB first.
     ///
@@ -142,7 +143,7 @@ impl From<ClockBitsOut> for u8 {
 ///
 /// [`clock_data_in`]: MpsseCmdBuilder::clock_data_in
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub enum ClockDataIn {
     /// Positive clock edge MSB first.
     ///
@@ -182,7 +183,7 @@ impl From<ClockDataIn> for u8 {
 ///
 /// [`clock_bits_in`]: MpsseCmdBuilder::clock_bits_in
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub enum ClockBitsIn {
     /// Positive clock edge MSB first.
     ///
@@ -235,7 +236,7 @@ impl From<ClockBitsIn> for u8 {
 /// [`clock_data`]: MpsseCmdBuilder::clock_data
 #[repr(u8)]
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub enum ClockData {
     /// MSB first, data in on positive edge, data out on negative edge.
     MsbPosIn = 0x31,
@@ -260,7 +261,7 @@ impl From<ClockData> for u8 {
 /// [`clock_bits`]: MpsseCmdBuilder::clock_bits
 #[repr(u8)]
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub enum ClockBits {
     /// MSB first, data in on positive edge, data out on negative edge.
     MsbPosIn = 0x33,
@@ -284,7 +285,7 @@ impl From<ClockBits> for u8 {
 ///
 /// [`clock_tms_out`]: MpsseCmdBuilder::clock_tms_out
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub enum ClockTMSOut {
     /// LSB first, TMS out on positive edge
     PosEdge = 0x4A,
@@ -304,7 +305,7 @@ impl From<ClockTMSOut> for u8 {
 ///
 /// [`clock_tms`]: MpsseCmdBuilder::clock_tms
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub enum ClockTMS {
     /// LSB first, TMS out on positive edge, TDO in on positive edge.
     PosTMSPosTDO = 0x6A,

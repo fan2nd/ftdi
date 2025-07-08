@@ -4,11 +4,6 @@ use crate::{FtMpsse, Pin, PinUse};
 use std::sync::{Arc, Mutex};
 
 /// FTDI output pin.
-///
-/// This is created by calling [`FtHal::ad0`] - [`FtHal::ad7`].
-///
-/// [`FtHal::ad0`]: crate::FtHal::ad0
-/// [`FtHal::ad7`]: crate::FtHal::ad7
 pub struct OutputPin {
     /// Parent FTDI device.
     mtx: Arc<Mutex<FtMpsse>>,
@@ -101,11 +96,6 @@ impl eh1::digital::OutputPin for OutputPin {
 }
 
 /// FTDI input pin.
-///
-/// This is created by calling [`FtHal::adi0`] - [`FtHal::adi7`].
-///
-/// [`FtHal::adi0`]: crate::FtHal::adi0
-/// [`FtHal::adi7`]: crate::FtHal::adi7
 pub struct InputPin {
     /// Parent FTDI device.
     mtx: Arc<Mutex<FtMpsse>>,

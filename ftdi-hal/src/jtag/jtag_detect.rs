@@ -163,10 +163,10 @@ impl JtagDetectTdi {
         tms: usize,
     ) -> Result<Self, FtdiError> {
         let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
-        lock.alloc_pin(Pin::Lower(tck), PinUse::Jtag);
-        lock.alloc_pin(Pin::Lower(tdi), PinUse::Jtag);
-        lock.alloc_pin(Pin::Lower(tdo), PinUse::Jtag);
-        lock.alloc_pin(Pin::Lower(tms), PinUse::Jtag);
+        lock.alloc_pin(Pin::Lower(tck), PinUse::JtagDetect);
+        lock.alloc_pin(Pin::Lower(tdi), PinUse::JtagDetect);
+        lock.alloc_pin(Pin::Lower(tdo), PinUse::JtagDetect);
+        lock.alloc_pin(Pin::Lower(tms), PinUse::JtagDetect);
         // all pins default set to low
         lock.lower.direction |= 1 << tck | 1 << tdi | 1 << tms; // all pins default input, set tck/tdi/tms to output
         Ok(Self {

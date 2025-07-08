@@ -16,136 +16,12 @@
 //! * Enable the "libftd2xx-static" feature flag to use static linking with libftd2xx driver.
 //! * Linux users only: Add [udev rules].
 //!
-//! ```toml
-//! [dependencies.ftdi-embedded-hal]
-//! version = "0.23.2"
-//! features = ["libftd2xx", "libftd2xx-static"]
-//! ```
-//!
 //! # Limitations
 //!
-//! * Limited trait support: SPI, I2C, Delay, InputPin, and OutputPin traits are implemented.
+//! * Limited trait support: SPI, I2C, InputPin, and OutputPin traits are implemented.
 //! * Limited device support: FT232H, FT2232H, FT4232H.
 //! * Limited SPI modes support: MODE0, MODE2.
-//!
-//! # Examples
-//!
-//! ## SPI
-//!
-//! Pin setup:
-//!
-//! * D0 - SCK
-//! * D1 - SDO (MOSI)
-//! * D2 - SDI (MISO)
-//! * D3..D7 - Available for CS
-//!
-//! Communicate with SPI devices using [ftdi-rs] driver:
-//! ```no_run
-//! use ftdi_embedded_hal as hal;
-//!
-//! # #[cfg(feature = "ftdi")]
-//! # {
-//! let device = ftdi::find_by_vid_pid(0x0403, 0x6010)
-//!     .interface(ftdi::Interface::A)
-//!     .open()?;
-//!
-//! let hal = hal::FtHal::init_freq(device, 3_000_000)?;
-//! let spi = hal.spi()?;
-//! # }
-//! # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-//! ```
-//!
-//! Communicate with SPI devices using [libftd2xx] driver:
-//! ```no_run
-//! use ftdi_embedded_hal as hal;
-//!
-//! # #[cfg(feature = "libftd2xx")]
-//! # {
-//! let device = libftd2xx::Ft2232h::with_description("Dual RS232-HS A")?;
-//!
-//! let hal = hal::FtHal::init_freq(device, 3_000_000)?;
-//! let spi = hal.spi()?;
-//! # }
-//! # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-//! ```
-//!
-//! ## I2C
-//!
-//! Communicate with I2C devices using [ftdi-rs] driver:
-//! ```no_run
-//! use ftdi_embedded_hal as hal;
-//!
-//! # #[cfg(feature = "ftdi")]
-//! # {
-//! let device = ftdi::find_by_vid_pid(0x0403, 0x6010)
-//!     .interface(ftdi::Interface::A)
-//!     .open()?;
-//!
-//! let hal = hal::FtHal::init_freq(device, 400_000)?;
-//! let i2c = hal.i2c()?;
-//! # }
-//! # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-//! ```
-//!
-//! Communicate with I2C devices using [libftd2xx] driver:
-//! ```no_run
-//! use ftdi_embedded_hal as hal;
-//!
-//! # #[cfg(feature = "libftd2xx")]
-//! # {
-//! let device = libftd2xx::Ft232h::with_description("Single RS232-HS")?;
-//!
-//! let hal = hal::FtHal::init_freq(device, 400_000)?;
-//! let i2c = hal.i2c()?;
-//! # }
-//! # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-//! ```
-//!
-//! ## GPIO
-//!
-//! Control GPIO pins using [libftd2xx] driver:
-//! ```no_run
-//! use ftdi_embedded_hal as hal;
-//!
-//! # #[cfg(feature = "libftd2xx")]
-//! # {
-//! let device = libftd2xx::Ft232h::with_description("Single RS232-HS")?;
-//!
-//! let hal = hal::FtHal::init_default(device)?;
-//! let gpio = hal.d6();
-//! # }
-//! # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-//! ```
-//!
-//! Control GPIO pins using [ftdi-rs] driver:
-//! ```no_run
-//! use ftdi_embedded_hal as hal;
-//!
-//! # #[cfg(feature = "ftdi")]
-//! # {
-//! let device = ftdi::find_by_vid_pid(0x0403, 0x6010)
-//!     .interface(ftdi::Interface::A)
-//!     .open()?;
-//!
-//! let hal = hal::FtHal::init_default(device)?;
-//! let gpio = hal.d6();
-//! # }
-//! # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-//! ```
-//!
-//! ## More examples
-//!
-//! * [newAM/eeprom25aa02e48-rs]: read data from Microchip 25AA02E48 SPI EEPROM
-//! * [newAM/bme280-rs]: read samples from Bosch BME280 sensor via I2C protocol
-//!
-//! [embedded-hal]: https://github.com/rust-embedded/embedded-hal
-//! [ftdi-rs]: https://github.com/tanriol/ftdi-rs
-//! [libftd2xx crate]: https://github.com/ftdi-rs/libftd2xx-rs/
-//! [libftd2xx]: https://github.com/ftdi-rs/libftd2xx-rs
-//! [newAM/eeprom25aa02e48-rs]: https://github.com/newAM/eeprom25aa02e48-rs/blob/main/examples/ftdi.rs
-//! [newAM/bme280-rs]: https://github.com/newAM/bme280-rs/blob/main/examples/ftdi-i2c.rs
-//! [udev rules]: https://github.com/ftdi-rs/libftd2xx-rs/#udev-rules
-//! [setup executable]: https://www.ftdichip.com/Drivers/CDM/CDM21228_Setup.zip
+
 #![forbid(unsafe_code)]
 
 pub use eh1;
@@ -208,7 +84,7 @@ pub struct FtMpsse {
 
 impl FtMpsse {
     pub fn open(
-        usb_device: nusb::DeviceInfo,
+        usb_device: &nusb::DeviceInfo,
         interface: Interface,
         mask: u8,
     ) -> Result<Self, FtdiError> {
@@ -298,6 +174,7 @@ impl FtMpsse {
         match pin {
             Pin::Lower(idx) => {
                 assert!(idx < 8, "Pin index {idx} is out of range 0 - 7");
+                assert!(self.lower.pins[idx].is_some(), "{pin:?} is not used");
                 self.lower.pins[idx] = None;
                 self.lower.value &= !(1 << idx); // set value to low
                 self.lower.direction &= !(1 << idx); // set direction to input
@@ -308,6 +185,7 @@ impl FtMpsse {
             }
             Pin::Upper(idx) => {
                 assert!(idx < 8, "Pin index {idx} is out of range 0 - 7");
+                assert!(self.upper.pins[idx].is_some(), "{pin:?} is not used");
                 self.upper.pins[idx] = None;
                 self.upper.value &= !(1 << idx); // set value to low
                 self.upper.direction &= !(1 << idx); // set direction to input
