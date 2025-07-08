@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 pub struct OutputPin {
     /// Parent FTDI device.
     mtx: Arc<Mutex<FtMpsse>>,
-    /// GPIO pin index.  0-7 for the FT232H.
+    /// GPIO pin index.
     pin: Pin,
 }
 
@@ -99,7 +99,7 @@ impl eh1::digital::OutputPin for OutputPin {
 pub struct InputPin {
     /// Parent FTDI device.
     mtx: Arc<Mutex<FtMpsse>>,
-    /// GPIO pin index.  0-7 for the FT232H.
+    /// GPIO pin index.
     pin: Pin,
 }
 

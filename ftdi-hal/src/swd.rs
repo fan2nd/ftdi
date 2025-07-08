@@ -18,6 +18,7 @@ pub enum SwdAddr {
 }
 impl From<SwdAddr> for u8 {
     fn from(value: SwdAddr) -> Self {
+        // Timing Sequence: [Start(1), APnDP, RnW, A[2:3], Parity, Stop(0), Park(1)]
         // LSB Format: [Park(1), Stop(0), Parity, A[3:2], RnW, APnDP, Start(1)]
         const PORT_MASK: u8 = 1 << 1;
         const ADDR_MASK: u8 = 0b11 << 2;
@@ -48,6 +49,7 @@ impl Swd {
     pub fn new(mtx: Arc<Mutex<FtMpsse>>) -> Result<Self, FtdiError> {
         {
             log::warn!("Swd module has not been tested yet!");
+            log::warn!("Swd module need connect AD1 and AD2!");
             let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
             lock.alloc_pin(Pin::Lower(0), PinUse::Swd);
             lock.alloc_pin(Pin::Lower(1), PinUse::Swd);
