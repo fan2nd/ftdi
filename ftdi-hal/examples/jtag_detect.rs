@@ -7,6 +7,7 @@ use ftdi_hal::{FtMpsse, JtagDetectTdi, list_all_device};
 use itertools::Itertools;
 
 fn main() {
+    env_logger::init();
     let now = Instant::now();
     let devices = list_all_device();
     assert!(!devices.is_empty(), "Not found Ftdi devices");
