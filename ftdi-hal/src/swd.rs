@@ -41,6 +41,7 @@ impl Swd {
     ///   Pin2 (DIO_INPUT)  - Input
     pub fn new(mtx: Arc<Mutex<FtMpsse>>) -> Result<Self, FtdiError> {
         {
+            log::warn!("Swd module has not been tested yet!");
             let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
             lock.alloc_pin(Pin::Lower(0), PinUse::Swd);
             lock.alloc_pin(Pin::Lower(1), PinUse::Swd);
@@ -117,7 +118,7 @@ impl Swd {
             let mut cmd = MpsseCmdBuilder::new();
             cmd.clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Input2Output
                 .send_immediate();
-            lock.write_read(cmd.as_slice(), response)?;
+            lock.write_read(cmd.as_slice(), &mut [])?;
             match ack {
                 0b010 => return Err(FtdiError::Other("Swd ack wait".into())),
                 0b100 => return Err(FtdiError::Other("Swd ack fail".into())),

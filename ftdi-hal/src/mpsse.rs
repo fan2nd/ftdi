@@ -51,9 +51,9 @@ pub enum MpsseCmd {
     // EnableDriveOnlyZero = 0x9E,
 }
 
-impl Into<u8> for MpsseCmd {
-    fn into(self) -> u8 {
-        self as u8
+impl From<MpsseCmd> for u8 {
+    fn from(val: MpsseCmd) -> Self {
+        val as u8
     }
 }
 
@@ -89,12 +89,6 @@ pub enum ClockDataOut {
     ///
     /// The data will change to the next bit on the falling edge of the CLK pin.
     LsbNeg = 0x19,
-}
-
-impl From<ClockDataOut> for u8 {
-    fn from(value: ClockDataOut) -> u8 {
-        value as u8
-    }
 }
 
 /// Modes for clocking bits out of the FTDI device.
@@ -345,47 +339,16 @@ pub struct MpsseCmdBuilder(Vec<u8>);
 #[allow(unused)]
 impl MpsseCmdBuilder {
     /// Create a new command builder.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use crate::mpsse::MpsseCmdBuilder;
-    ///
-    /// MpsseCmdBuilder::new();
-    /// ```
     pub const fn new() -> MpsseCmdBuilder {
         MpsseCmdBuilder(Vec::new())
     }
 
     /// Create a new command builder from a vector.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use crate::mpsse::MpsseCmdBuilder;
-    ///
-    /// MpsseCmdBuilder::with_vec(Vec::new());
-    /// ```
     pub const fn with_vec(vec: Vec<u8>) -> MpsseCmdBuilder {
         MpsseCmdBuilder(vec)
     }
 
     /// Get the MPSSE command as a slice.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use crate::mpsse::MpsseCmdBuilder;
-    /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
-    ///
-    /// let cmd = MpsseCmdBuilder::new().enable_loopback();
-    ///
-    /// let mut ft = Ft232h::with_serial_number("FT5AVX6B")?;
-    /// ft.initialize_mpsse_default()?;
-    /// ft.set_clock(100_000);
-    /// ft.write_all(cmd.as_slice())?;
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
     pub fn as_slice(&self) -> &[u8] {
         self.0.as_slice()
     }
@@ -393,23 +356,14 @@ impl MpsseCmdBuilder {
     /// Set the MPSSE clock frequency using provided
     /// divisor value and clock divider configuration.
     /// Both parameters are device dependent.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use crate::mpsse::MpsseCmdBuilder;
-    ///
-    /// let cmd = MpsseCmdBuilder::new().set_clock(9, Some(false));
-    ///
-    /// ```
-    pub fn set_clock(&mut self, divisor: u32, clkdiv: Option<bool>) -> &mut Self {
+    pub fn set_clock(&mut self, divisor: u16, clkdiv: Option<bool>) -> &mut Self {
         match clkdiv {
-            Some(true) => self.0.push(MpsseCmd::EnableClockDivide.into()),
-            Some(false) => self.0.push(MpsseCmd::DisableClockDivide.into()),
+            Some(true) => self.0.push(MpsseCmd::EnableClockDivide as u8),
+            Some(false) => self.0.push(MpsseCmd::DisableClockDivide as u8),
             None => {}
         };
 
-        self.0.push(MpsseCmd::SetClockFrequency.into());
+        self.0.push(MpsseCmd::SetClockFrequency as u8);
         self.0.push((divisor & 0xFF) as u8);
         self.0.push(((divisor >> 8) & 0xFF) as u8);
 
@@ -417,42 +371,14 @@ impl MpsseCmdBuilder {
     }
 
     /// Enable the MPSSE loopback state.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use crate::mpsse::MpsseCmdBuilder;
-    /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
-    ///
-    /// let cmd = MpsseCmdBuilder::new().enable_loopback();
-    ///
-    /// let mut ft = Ft232h::with_serial_number("FT5AVX6B")?;
-    /// ft.initialize_mpsse_default()?;
-    /// ft.write_all(cmd.as_slice())?;
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
     pub fn enable_loopback(&mut self) -> &mut Self {
-        self.0.push(MpsseCmd::EnableLoopback.into());
+        self.0.push(MpsseCmd::EnableLoopback as u8);
         self
     }
 
     /// Disable the MPSSE loopback state.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use crate::mpsse::MpsseCmdBuilder;
-    /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
-    ///
-    /// let cmd = MpsseCmdBuilder::new().disable_loopback();
-    ///
-    /// let mut ft = Ft232h::with_serial_number("FT5AVX6B")?;
-    /// ft.initialize_mpsse_default()?;
-    /// ft.write_all(cmd.as_slice())?;
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
     pub fn disable_loopback(&mut self) -> &mut Self {
-        self.0.push(MpsseCmd::DisableLoopback.into());
+        self.0.push(MpsseCmd::DisableLoopback as u8);
         self
     }
     /// Disable 3 phase data clocking.
@@ -465,22 +391,8 @@ impl MpsseCmdBuilder {
     ///
     /// 1. Data setup for 1/2 clock period
     /// 2. Pulse clock for 1/2 clock period
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use crate::mpsse::MpsseCmdBuilder;
-    /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
-    ///
-    /// let cmd = MpsseCmdBuilder::new().disable_3phase_data_clocking();
-    ///
-    /// let mut ft = Ft232h::with_serial_number("FT5AVX6B")?;
-    /// ft.initialize_mpsse_default()?;
-    /// ft.write_all(cmd.as_slice())?;
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
     pub fn disable_3phase_data_clocking(&mut self) -> &mut Self {
-        self.0.push(MpsseCmd::Disable3PhaseClocking.into());
+        self.0.push(MpsseCmd::Disable3PhaseClocking as u8);
         self
     }
 
@@ -497,22 +409,8 @@ impl MpsseCmdBuilder {
     /// 1. Data setup for 1/2 clock period
     /// 2. Pulse clock for 1/2 clock period
     /// 3. Data hold for 1/2 clock period
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use crate::mpsse::MpsseCmdBuilder;
-    /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
-    ///
-    /// let cmd = MpsseCmdBuilder::new().enable_3phase_data_clocking();
-    ///
-    /// let mut ft = Ft232h::with_serial_number("FT5AVX6B")?;
-    /// ft.initialize_mpsse_default()?;
-    /// ft.write_all(cmd.as_slice())?;
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
     pub fn enable_3phase_data_clocking(&mut self) -> &mut Self {
-        self.0.push(MpsseCmd::Enable3PhaseClocking.into());
+        self.0.push(MpsseCmd::Enable3PhaseClocking as u8);
         self
     }
 
@@ -520,7 +418,7 @@ impl MpsseCmdBuilder {
     ///
     /// This is only available on FTx232H devices.
     pub fn enable_adaptive_data_clocking(&mut self) -> &mut Self {
-        self.0.push(MpsseCmd::EnableAdaptiveClocking.into());
+        self.0.push(MpsseCmd::EnableAdaptiveClocking as u8);
         self
     }
 
@@ -528,7 +426,7 @@ impl MpsseCmdBuilder {
     ///
     /// This is only available on FTx232H devices.
     pub fn disable_adaptive_data_clocking(&mut self) -> &mut Self {
-        self.0.push(MpsseCmd::DisableAdaptiveClocking.into());
+        self.0.push(MpsseCmd::DisableAdaptiveClocking as u8);
         self
     }
 
@@ -543,25 +441,9 @@ impl MpsseCmdBuilder {
     ///
     /// * `state` - GPIO state mask, `0` is low (or input pin), `1` is high.
     /// * `direction` - GPIO direction mask, `0` is input, `1` is output.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use crate::mpsse::MpsseCmdBuilder;
-    /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
-    ///
-    /// let cmd = MpsseCmdBuilder::new()
-    ///     .set_gpio_lower(0xFF, 0xFF)
-    ///     .set_gpio_lower(0x00, 0xFF);
-    ///
-    /// let mut ft = Ft232h::with_serial_number("FT5AVX6B")?;
-    /// ft.initialize_mpsse_default()?;
-    /// ft.write_all(cmd.as_slice())?;
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
     pub fn set_gpio_lower(&mut self, state: u8, direction: u8) -> &mut Self {
         self.0
-            .extend_from_slice(&[MpsseCmd::SetDataBitsLowbyte.into(), state, direction]);
+            .extend_from_slice(&[MpsseCmd::SetDataBitsLowbyte as u8, state, direction]);
         self
     }
 
@@ -582,49 +464,16 @@ impl MpsseCmdBuilder {
     /// On the FT232H only CBUS5, CBUS6, CBUS8, and CBUS9 can be controlled.
     /// These pins confusingly map to the first four bits in the direction and
     /// state masks.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use crate::mpsse::MpsseCmdBuilder;
-    /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
-    ///
-    /// let cmd = MpsseCmdBuilder::new()
-    ///     .set_gpio_upper(0xFF, 0xFF)
-    ///     .set_gpio_upper(0x00, 0xFF);
-    ///
-    /// let mut ft = Ft232h::with_serial_number("FT5AVX6B")?;
-    /// ft.initialize_mpsse_default()?;
-    /// ft.write_all(cmd.as_slice())?;
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
     pub fn set_gpio_upper(&mut self, state: u8, direction: u8) -> &mut Self {
         self.0
-            .extend_from_slice(&[MpsseCmd::SetDataBitsHighbyte.into(), state, direction]);
+            .extend_from_slice(&[MpsseCmd::SetDataBitsHighbyte as u8, state, direction]);
         self
     }
 
     /// Get the pin state state of the lower byte (0-7) GPIO pins on the MPSSE
     /// interface.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use crate::mpsse::MpsseCmdBuilder;
-    /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
-    ///
-    /// let cmd = MpsseCmdBuilder::new().gpio_lower().send_immediate();
-    ///
-    /// let mut ft = Ft232h::with_serial_number("FT5AVX6B")?;
-    /// ft.initialize_mpsse_default()?;
-    /// ft.write_all(cmd.as_slice())?;
-    /// let mut buf: [u8; 1] = [0; 1];
-    /// ft.read_all(&mut buf)?;
-    /// println!("GPIO lower state: 0x{:02X}", buf[0]);
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
     pub fn gpio_lower(&mut self) -> &mut Self {
-        self.0.push(MpsseCmd::GetDataBitsLowbyte.into());
+        self.0.push(MpsseCmd::GetDataBitsLowbyte as u8);
         self
     }
 
@@ -634,87 +483,37 @@ impl MpsseCmdBuilder {
     /// See [`set_gpio_upper`] for additional information about physical pin
     /// mappings.
     ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use crate::mpsse::MpsseCmdBuilder;
-    /// use libftd2xx::{Ft232h, FtdiCommon, FtdiMpsse};
-    ///
-    /// let cmd = MpsseCmdBuilder::new().gpio_upper().send_immediate();
-    ///
-    /// let mut ft = Ft232h::with_serial_number("FT5AVX6B")?;
-    /// ft.initialize_mpsse_default()?;
-    /// ft.write_all(cmd.as_slice())?;
-    /// let mut buf: [u8; 1] = [0; 1];
-    /// ft.read_all(&mut buf)?;
-    /// println!("GPIO upper state: 0x{:02X}", buf[0]);
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
-    ///
     /// [`set_gpio_upper`]: MpsseCmdBuilder::set_gpio_upper
     pub fn gpio_upper(&mut self) -> &mut Self {
-        self.0.push(MpsseCmd::GetDataBitsHighbyte.into());
+        self.0.push(MpsseCmd::GetDataBitsHighbyte as u8);
         self
     }
 
     /// Send the preceding commands immediately.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use crate::mpsse::MpsseCmdBuilder;
-    ///
-    /// let cmd = MpsseCmdBuilder::new()
-    ///     .set_gpio_upper(0xFF, 0xFF)
-    ///     .set_gpio_upper(0x00, 0xFF)
-    ///     .send_immediate();
-    /// ```
     pub fn send_immediate(&mut self) -> &mut Self {
-        self.0.push(MpsseCmd::SendImmediate.into());
+        self.0.push(MpsseCmd::SendImmediate as u8);
         self
     }
 
     /// Make controller wait until GPIOL1 or I/O1 is high before running further commands.
-    ///
-    /// # Example
-    ///
-    /// ```
     /// use crate::mpsse::{ClockData, MpsseCmdBuilder};
     ///
     /// // Assume a "chip ready" signal is connected to GPIOL1. This signal is pulled high
     /// // shortly after AD3 (chip select) is pulled low. Data will not be clocked out until
     /// // the chip is ready.
-    /// let cmd = MpsseCmdBuilder::new()
-    ///     .set_gpio_lower(0x0, 0xb)
-    ///     .wait_on_io_high()
-    ///     .clock_data(ClockData::MsbPosIn, &[0x12, 0x34, 0x56])
-    ///     .set_gpio_lower(0x8, 0xb)
-    ///     .send_immediate();
-    /// ```
     pub fn wait_on_io_high(&mut self) -> &mut Self {
-        self.0.push(MpsseCmd::WaitOnIOHigh.into());
+        self.0.push(MpsseCmd::WaitOnIOHigh as u8);
         self
     }
 
     /// Make controller wait until GPIOL1 or I/O1 is low before running further commands.
-    ///
-    /// # Example
-    ///
-    /// ```
     /// use crate::mpsse::{ClockData, MpsseCmdBuilder};
     ///
     /// // Assume a "chip ready" signal is connected to GPIOL1. This signal is pulled low
     /// // shortly after AD3 (chip select) is pulled low. Data will not be clocked out until
     /// // the chip is ready.
-    /// let cmd = MpsseCmdBuilder::new()
-    ///     .set_gpio_lower(0x0, 0xb)
-    ///     .wait_on_io_low()
-    ///     .clock_data(ClockData::MsbPosIn, &[0x12, 0x34, 0x56])
-    ///     .set_gpio_lower(0x8, 0xb)
-    ///     .send_immediate();
-    /// ```
     pub fn wait_on_io_low(&mut self) -> &mut Self {
-        self.0.push(MpsseCmd::WaitOnIOLow.into());
+        self.0.push(MpsseCmd::WaitOnIOLow as u8);
         self
     }
 
@@ -732,7 +531,7 @@ impl MpsseCmdBuilder {
             None => return self,
         };
         self.0
-            .extend_from_slice(&[mode.into(), (len & 0xFF) as u8, ((len >> 8) & 0xFF) as u8]);
+            .extend_from_slice(&[mode as u8, (len & 0xFF) as u8, ((len >> 8) & 0xFF) as u8]);
         self.0.extend_from_slice(data);
         self
     }
@@ -754,7 +553,7 @@ impl MpsseCmdBuilder {
             None => return self,
         };
         self.0
-            .extend_from_slice(&[mode.into(), (len & 0xFF) as u8, ((len >> 8) & 0xFF) as u8]);
+            .extend_from_slice(&[mode as u8, (len & 0xFF) as u8, ((len >> 8) & 0xFF) as u8]);
         self
     }
 
@@ -769,7 +568,7 @@ impl MpsseCmdBuilder {
             None => return self,
         };
         self.0
-            .extend_from_slice(&[mode.into(), (len & 0xFF) as u8, ((len >> 8) & 0xFF) as u8]);
+            .extend_from_slice(&[mode as u8, (len & 0xFF) as u8, ((len >> 8) & 0xFF) as u8]);
         self.0.extend_from_slice(data);
         self
     }
@@ -788,7 +587,7 @@ impl MpsseCmdBuilder {
             Some(l) => l,
             None => return self,
         };
-        self.0.extend_from_slice(&[mode.into(), len, data]);
+        self.0.extend_from_slice(&[mode as u8, len, data]);
         self
     }
 
@@ -805,7 +604,7 @@ impl MpsseCmdBuilder {
             Some(l) => l,
             None => return self,
         };
-        self.0.extend_from_slice(&[mode.into(), len]);
+        self.0.extend_from_slice(&[mode as u8, len]);
         self
     }
 
@@ -822,7 +621,7 @@ impl MpsseCmdBuilder {
             Some(l) => l,
             None => return self,
         };
-        self.0.extend_from_slice(&[mode.into(), len, data]);
+        self.0.extend_from_slice(&[mode as u8, len, data]);
         self
     }
 
@@ -850,7 +649,7 @@ impl MpsseCmdBuilder {
         if tdi {
             data |= 0x80;
         }
-        self.0.extend_from_slice(&[mode.into(), len, data]);
+        self.0.extend_from_slice(&[mode as u8, len, data]);
         self
     }
 
@@ -872,7 +671,7 @@ impl MpsseCmdBuilder {
         if tdi {
             data |= 0x80;
         }
-        self.0.extend_from_slice(&[mode.into(), len, data]);
+        self.0.extend_from_slice(&[mode as u8, len, data]);
         self
     }
 }

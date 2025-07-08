@@ -74,6 +74,7 @@ impl Drop for Spi {
 impl Spi {
     pub fn new(mtx: Arc<Mutex<FtMpsse>>) -> Result<Spi, FtdiError> {
         {
+            log::warn!("Spi module has not been tested yet!");
             let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
             lock.alloc_pin(Pin::Lower(0), PinUse::Spi);
             lock.alloc_pin(Pin::Lower(1), PinUse::Spi);

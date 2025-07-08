@@ -1,6 +1,6 @@
 use nusb::DeviceInfo;
 
-use crate::ftdaye::ChipType;
+use crate::{Interface, ftdaye::ChipType};
 /// Known properties associated to particular FTDI chip types.
 
 #[derive(Debug, Clone, Copy)]
@@ -62,15 +62,31 @@ static FTDI_COMPAT_DEVICES: &[FtdiDevice] = &[
     },
 ];
 
-pub fn list_all_device() -> Vec<DeviceInfo> {
-    fn id_match(info: &DeviceInfo) -> bool {
+pub struct FtdiDeviceInfo {
+    pub usb_device: DeviceInfo,
+    pub interface: &'static [Interface],
+}
+
+pub fn list_all_device() -> Vec<FtdiDeviceInfo> {
+    fn filter_map(info: DeviceInfo) -> Option<FtdiDeviceInfo> {
         for device in FTDI_COMPAT_DEVICES {
             if (info.vendor_id(), info.product_id()) == device.id {
-                log::info!("Find {:?}[{:?}]", device.fallback_chip_type, device.id);
-                return true;
+                log::info!(
+                    "Find {:?}:[{:#06x?},{:#06x?}]",
+                    device.fallback_chip_type,
+                    device.id.0,
+                    device.id.1
+                );
+                return Some(FtdiDeviceInfo {
+                    usb_device: info,
+                    interface: device.fallback_chip_type.mpsse_list(),
+                });
             }
         }
-        false
+        None
     }
-    nusb::list_devices().unwrap().filter(id_match).collect()
+    nusb::list_devices()
+        .unwrap()
+        .filter_map(filter_map)
+        .collect()
 }

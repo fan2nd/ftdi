@@ -39,6 +39,7 @@ impl Drop for I2c {
 impl I2c {
     pub fn new(mtx: Arc<Mutex<FtMpsse>>) -> Result<I2c, FtdiError> {
         {
+            log::warn!("Swd module has not been tested yet!");
             let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
 
             lock.alloc_pin(Pin::Lower(0), PinUse::I2c);

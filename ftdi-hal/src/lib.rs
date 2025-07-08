@@ -33,15 +33,13 @@ mod mpsse;
 mod spi;
 mod swd;
 
-pub use crate::ftdaye::Interface;
-use crate::{
-    ftdaye::{ChipType, FtdiContext, FtdiError},
-    mpsse::MpsseCmdBuilder,
-};
+pub use ftdaye::Interface;
+use ftdaye::{ChipType, FtdiContext, FtdiError};
 pub use gpio::{InputPin, OutputPin};
 pub use i2c::I2c;
 pub use jtag::{Jtag, JtagDetectTdi, JtagDetectTdo};
 pub use list::list_all_device;
+use mpsse::MpsseCmdBuilder;
 pub use spi::{Spi, SpiMode};
 pub use swd::{Swd, SwdOp, SwdPort};
 
@@ -103,7 +101,7 @@ impl FtMpsse {
         ) {
             // (0x400, _) | (0x200, "") => ChipType::Bm,
             // (0x200, _) => ChipType::Am,
-            (0x500, _) => ChipType::FT2232C,
+            // (0x500, _) => ChipType::FT2232C,
             // (0x600, _) => ChipType::R,
             (0x700, _) => ChipType::FT2232H,
             (0x800, _) => ChipType::FT4232H,
@@ -137,6 +135,47 @@ impl FtMpsse {
             .send_immediate();
         this.write_read(cmd.as_slice(), &mut [])?;
         Ok(this)
+    }
+
+    pub fn set_frequency(&self, frequency_hz: usize) -> Result<usize, FtdiError> {
+        const MIN_FREQUENCY: usize = 6_000_000 / (u16::MAX as usize + 1);
+        let mut max_frequency = self.chip_type.max_frequency();
+        if frequency_hz > max_frequency || frequency_hz < 91 {
+            log::warn!("speed has out of range[{MIN_FREQUENCY}-{max_frequency}Hz]",)
+        }
+        let mut cmd = MpsseCmdBuilder::new();
+        let mut divide = max_frequency / frequency_hz;
+        let mut divide_by_5 = if self.chip_type.has_devide_by5() {
+            Some(false)
+        } else {
+            None
+        };
+        divide += if max_frequency % frequency_hz != 0 {
+            1
+        } else {
+            0
+        };
+
+        if divide - 1 > u16::MAX as usize {
+            if divide_by_5.is_some() {
+                divide_by_5 = Some(true);
+                max_frequency /= 5;
+                divide = if divide % 5 != 0 {
+                    divide / 5 + 1
+                } else {
+                    divide / 5
+                };
+            } else {
+                divide_by_5 = None
+            }
+            if divide - 1 > u16::MAX as usize {
+                divide = u16::MAX as usize + 1;
+            }
+        }
+        cmd.set_clock((divide - 1) as u16, divide_by_5);
+        self.write_read(cmd.as_slice(), &mut [])?;
+        log::info!("Frequency set to {}Hz", max_frequency / divide);
+        Ok(max_frequency / divide)
     }
     /// Write mpsse command and read response
     fn write_read(&self, write: &[u8], read: &mut [u8]) -> Result<(), FtdiError> {

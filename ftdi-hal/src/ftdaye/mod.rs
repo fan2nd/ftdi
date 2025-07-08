@@ -16,11 +16,15 @@ pub enum ChipType {
     FT230X,
 }
 impl ChipType {
+    pub fn max_frequency(self) -> usize {
+        match self {
+            ChipType::FT232H | ChipType::FT2232H | ChipType::FT4232H => 30_000_000,
+            _ => todo!(),
+        }
+    }
     pub fn has_devide_by5(self) -> bool {
         match self {
-            ChipType::FT232H => true,
-            ChipType::FT2232H => true,
-            ChipType::FT4232H => true,
+            ChipType::FT232H | ChipType::FT2232H | ChipType::FT4232H => true,
             _ => todo!(),
         }
     }

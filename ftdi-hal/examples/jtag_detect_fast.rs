@@ -3,14 +3,14 @@ use std::{
     time::Instant,
 };
 
-use ftdi_hal::{FtMpsse, Interface, JtagDetectTdi, JtagDetectTdo, list_all_device};
+use ftdi_hal::{FtMpsse, JtagDetectTdi, JtagDetectTdo, list_all_device};
 use itertools::Itertools;
 
 fn main() {
     let now = Instant::now();
     let devices = list_all_device();
     assert!(!devices.is_empty(), "Not found Ftdi devices");
-    let mpsse = FtMpsse::open(&devices[0], Interface::A, 0).unwrap();
+    let mpsse = FtMpsse::open(&devices[0].usb_device, devices[0].interface[0], 0).unwrap();
     let mtx = Arc::new(Mutex::new(mpsse));
     let pins = [0, 1, 2, 3, 4, 5, 6, 7];
     let mut notdi = Vec::new();
@@ -20,8 +20,8 @@ fn main() {
         let tms = couple[1];
         let jtag = JtagDetectTdo::new(mtx.clone(), tck, tms).unwrap();
         let ids_scan = jtag.scan().unwrap();
-        for tdo in 0..8 {
-            if !pins.contains(&tdo) || tdo == tck || tdo == tms {
+        for &tdo in pins.iter() {
+            if tdo == tck || tdo == tms {
                 continue;
             }
             if ids_scan[tdo].iter().any(Option::is_some) {
@@ -32,8 +32,8 @@ fn main() {
     }
     // find tdi
     for (tck, tms, tdo) in notdi {
-        for tdi in 0..8 {
-            if !pins.contains(&tdi) || tdi == tck || tdi == tms || tdi == tdo {
+        for &tdi in pins.iter() {
+            if tdi == tck || tdi == tms || tdi == tdo {
                 continue;
             }
             let jtag = JtagDetectTdi::new(mtx.clone(), tck, tdi, tdo, tms).unwrap();
