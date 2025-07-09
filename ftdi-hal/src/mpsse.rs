@@ -364,11 +364,8 @@ pub struct MpsseCmdBuilder {
 #[allow(unused)]
 impl MpsseCmdBuilder {
     /// Create a new command builder.
-    pub const fn new() -> MpsseCmdBuilder {
-        MpsseCmdBuilder {
-            cmd: Vec::new(),
-            read_len: 0,
-        }
+    pub fn new() -> MpsseCmdBuilder {
+        Default::default()
     }
 
     /// Get the MPSSE command as a slice.
