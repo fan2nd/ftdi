@@ -147,7 +147,7 @@ impl Jtag {
 
         'outer: loop {
             let mut cmd = MpsseCmdBuilder::new();
-            cmd.clock_data(BYTES_WRITE_READ, &tdi).send_immediate();
+            cmd.clock_bytes(BYTES_WRITE_READ, &tdi).send_immediate();
             let read_buf = &mut [0; 4];
             lock.write_read(cmd.as_slice(), read_buf)?;
             let tdos: Vec<_> = read_buf

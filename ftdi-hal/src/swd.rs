@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    ops::{Deref, DerefMut},
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 use crate::{
     FtMpsse, Pin, PinUse,
@@ -10,6 +13,74 @@ use crate::{
 const SCK: u8 = 1 << 0;
 /// DIO bitmask
 const DIO: u8 = 1 << 1;
+
+struct SwdCmdBuilder(MpsseCmdBuilder);
+impl Deref for SwdCmdBuilder {
+    type Target = MpsseCmdBuilder;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl DerefMut for SwdCmdBuilder {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl SwdCmdBuilder {
+    const BITS_IN: ClockBitsIn = ClockBitsIn::LsbNeg;
+    const BITS_OUT: ClockBitsOut = ClockBitsOut::LsbPos;
+    const BYTES_IN: ClockBytesIn = ClockBytesIn::LsbNeg;
+    const BYTES_OUT: ClockBytesOut = ClockBytesOut::LsbPos;
+    pub fn new() -> Self {
+        SwdCmdBuilder(MpsseCmdBuilder::new())
+    }
+    pub fn swd_enable(&mut self, lock: &MutexGuard<FtMpsse>) -> &mut Self {
+        const ONES: [u8; 8] = [0xff; 8]; // 64 ones
+        const SEQUENCE: [u8; 2] = [0x79, 0xe7]; // Activation pattern
+
+        self.swd_out(lock)
+            .clock_bytes_out(ClockBytesOut::LsbPos, &ONES) // >50 ones (LSB first)
+            .clock_bytes_out(ClockBytesOut::MsbPos, &SEQUENCE) // Activation pattern (MSB first)
+            .clock_bytes_out(ClockBytesOut::LsbPos, &ONES) // >50 ones (LSB first)
+            .send_immediate();
+        self
+    }
+    pub fn swd_out(&mut self, lock: &MutexGuard<FtMpsse>) -> &mut Self {
+        self.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO);
+        self
+    }
+    pub fn swd_in(&mut self, lock: &MutexGuard<FtMpsse>) -> &mut Self {
+        self.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK);
+        self
+    }
+    pub fn swd_trn(&mut self) -> &mut Self {
+        self.clock_bits_out(Self::BITS_OUT, 0xff, 1);
+        self
+    }
+    pub fn swd_send_request(&mut self, request: u8) -> &mut Self {
+        self.clock_bytes_out(Self::BYTES_OUT, &[request]); // // Send request
+        self
+    }
+    pub fn swd_read_response(&mut self) -> &mut Self {
+        self.clock_bits_in(Self::BITS_IN, 3);
+        self
+    }
+    pub fn swd_read_data(&mut self) -> &mut Self {
+        const DATA_BYTES: usize = 4;
+        const PARITY_BITS: usize = 1;
+        self.clock_bytes_in(Self::BYTES_IN, DATA_BYTES)
+            .clock_bits_in(Self::BITS_IN, PARITY_BITS);
+        self
+    }
+    pub fn swd_write_data(&mut self, value: u32) -> &mut Self {
+        const PARITY_BITS: usize = 1;
+        let bytes = value.to_le_bytes();
+        let parity = (value.count_ones() & 0x01) as u8;
+        self.clock_bytes_out(Self::BYTES_OUT, &bytes)
+            .clock_bits_out(Self::BITS_OUT, parity, PARITY_BITS);
+        self
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum SwdAddr {
@@ -41,6 +112,11 @@ impl Drop for Swd {
     }
 }
 impl Swd {
+    // Swd ACK (3 bits)
+    // 0..=2 - 001:失败 010:等待 100:成功
+    const REPONSE_SUCCESS: u8 = 0b001;
+    const REPONSE_WAIT: u8 = 0b010;
+    const REPONSE_FAILED: u8 = 0b100;
     /// Initialize SWD interface
     /// Allocates and configures GPIO pins:
     ///   Pin0 (SCK)        - Output
@@ -72,16 +148,9 @@ impl Swd {
     /// Send SWD activation sequence
     /// Sequence: >50 ones + 0x79E7 (MSB first) + >50 ones
     pub fn enable(&self) -> Result<(), FtdiError> {
-        const ONES: [u8; 8] = [0xff; 8]; // 64 ones
-        const SEQUENCE: [u8; 2] = [0x79, 0xe7]; // Activation pattern
-
         let lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
-        let mut cmd = MpsseCmdBuilder::new();
-        cmd.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO)
-            .clock_data_out(ClockBytesOut::LsbPos, &ONES) // >50 ones (LSB first)
-            .clock_data_out(ClockBytesOut::MsbPos, &SEQUENCE) // Activation pattern (MSB first)
-            .clock_data_out(ClockBytesOut::LsbPos, &ONES) // >50 ones (LSB first)
-            .send_immediate();
+        let mut cmd = SwdCmdBuilder::new();
+        cmd.swd_enable(&lock);
 
         lock.write_read(cmd.as_slice(), &mut [])?;
         Ok(())
@@ -100,7 +169,7 @@ impl Swd {
         // The parity check is made over the APnDP, RnW and A[2:3] bits. If, of these four bits:
         // • the number of bits set to 1 is odd, then the parity bit is set to 1
         // • the number of bits set to 1 is even, then the parity bit is set to 0.
-        let parity = ((request >> 1) & 0x0F).count_ones() as u8 & 1;
+        let parity = ((request >> 1) & 0x0F).count_ones() as u8 & 0x01;
         request |= parity << 5; // Set parity bit (position 5)
 
         request
@@ -111,43 +180,39 @@ impl Swd {
         let response: &mut [u8] = &mut [0];
         let lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
         // Send request (8 bits)
-        let mut cmd = MpsseCmdBuilder::new();
-        cmd.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
-            .clock_data_out(ClockBytesOut::LsbPos, &[request]) // // Send request
-            .set_gpio_lower(lock.lower.value, lock.lower.direction | SCK) // DIO as input
-            .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Output2Input
-            .clock_bits_in(ClockBitsIn::LsbNeg, 3) // Read ACK (3 bits)
+        let mut cmd = SwdCmdBuilder::new();
+        cmd.swd_out(&lock)
+            .swd_send_request(request)
+            .swd_in(&lock)
+            .swd_trn()
+            .swd_read_response()
             .send_immediate();
         lock.write_read(cmd.as_slice(), response)?;
 
         // Read ACK (3 bits)
-        // 0..2	- 001:失败 010:等待 100:成功
+        // 0..=2 - 001:失败 010:等待 100:成功
         let ack = response[0] >> 5;
-        if ack != 0b001 {
-            let mut cmd = MpsseCmdBuilder::new();
-            cmd.clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Input2Output
-                .send_immediate();
+        if ack != Self::REPONSE_SUCCESS {
+            let mut cmd = SwdCmdBuilder::new();
+            cmd.swd_trn().send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
             match ack {
-                0b010 => return Err(FtdiError::Other("Swd ack wait".into())),
-                0b100 => return Err(FtdiError::Other("Swd ack fail".into())),
+                Self::REPONSE_WAIT => return Err(FtdiError::Other("Swd ack wait".into())),
+                Self::REPONSE_FAILED => return Err(FtdiError::Other("Swd ack fail".into())),
                 x => return Err(FtdiError::Other(format!("Unknown ack {x:3b}"))),
             }
         }
 
         // Read data (32 bits) + parity (1 bit) = 33 bits
         let mut data = [0u8; 5]; // 33 bits = 5 bytes
-        let mut cmd = MpsseCmdBuilder::new();
-        cmd.clock_data_in(ClockBytesIn::LsbNeg, 4) // 32-bit data
-            .clock_bits_in(ClockBitsIn::LsbNeg, 1) // 1-bit parity
-            .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Input2Output
-            .send_immediate();
+        let mut cmd = SwdCmdBuilder::new();
+        cmd.swd_read_data().swd_trn().send_immediate();
         lock.write_read(cmd.as_slice(), &mut data)?;
 
         // Parse the data (LSB first)
         let value = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
         let parity = (data[4] >> 7) & 0x01;
-        let calc_parity = value.count_ones() as u8 & 1;
+        let calc_parity = value.count_ones() as u8 & 0x01;
 
         if parity != calc_parity {
             return Err(FtdiError::Other("Swd data parity error".to_string()));
@@ -159,37 +224,29 @@ impl Swd {
         let request = Self::build_request(false, addr);
         let response: &mut [u8] = &mut [0];
         let lock = self.mtx.lock().expect("Failed to acquire FTDI mutex");
-        let mut cmd = MpsseCmdBuilder::new();
-        cmd.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
-            .clock_data_out(ClockBytesOut::LsbPos, &[request]) // Send request
-            .set_gpio_lower(lock.lower.value, lock.lower.direction | SCK) // DIO as input
-            .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Output2Input
-            .clock_bits_in(ClockBitsIn::LsbNeg, 3) // Read ACK (3 bits)
-            .clock_bits_out(ClockBitsOut::LsbPos, 0xff, 1) // TRN cycle Input2Output
+        let mut cmd = SwdCmdBuilder::new();
+        cmd.swd_out(&lock)
+            .swd_send_request(request)
+            .swd_in(&lock)
+            .swd_trn()
+            .swd_read_response()
+            .swd_trn()
             .send_immediate();
         lock.write_read(cmd.as_slice(), response)?;
 
         // Read ACK (3 bits)
-        // 0..2	- 001:失败 010:等待 100:成功
+        // 0..=2 - 001:失败 010:等待 100:成功
         let ack = response[0] >> 5;
-        if ack != 0b001 {
+        if ack != Self::REPONSE_SUCCESS {
             match ack {
-                0b010 => return Err(FtdiError::Other("Swd ack wait".into())),
-                0b100 => return Err(FtdiError::Other("Swd ack fail".into())),
+                Self::REPONSE_WAIT => return Err(FtdiError::Other("Swd ack wait".into())),
+                Self::REPONSE_FAILED => return Err(FtdiError::Other("Swd ack fail".into())),
                 x => return Err(FtdiError::Other(format!("Unknown ack {x:3b}"))),
             }
         }
-
-        // Prepare data: 32 bits value + 1 parity bit
-        let data = value.to_le_bytes();
-        let parity = value.count_ones() as u8 & 1;
-
         // Send data (33 bits)
-        let mut cmd = MpsseCmdBuilder::new();
-        cmd.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO) // DIO as output
-            .clock_data_out(ClockBytesOut::LsbPos, &data)
-            .clock_bits_out(ClockBitsOut::LsbPos, parity, 1)
-            .send_immediate();
+        let mut cmd = SwdCmdBuilder::new();
+        cmd.swd_out(&lock).swd_write_data(value).send_immediate();
         lock.write_read(cmd.as_slice(), &mut [])?;
         Ok(())
     }
