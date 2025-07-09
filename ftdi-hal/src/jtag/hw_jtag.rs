@@ -111,7 +111,8 @@ impl Jtag {
             lock.alloc_pin(Pin::Lower(3), PinUse::Jtag);
             // set TCK(AD0) TDI(AD1) TMS(AD3) as output pins
             lock.lower.direction |= 0x0b;
-            // TCK(AD0) must be init with value 0
+            // TCK(AD0) must be init with value 0 according to AN108-2.2.
+            // https://ftdichip.com/Support/Documents/AppNotes/AN_108_Command_Processor_for_MPSSE_and_MCU_Host_Bus_Emulation_Modes.pdf
             let mut cmd = MpsseCmdBuilder::new();
             cmd.set_gpio_lower(lock.lower.value, lock.lower.direction)
                 .disable_3phase_data_clocking()

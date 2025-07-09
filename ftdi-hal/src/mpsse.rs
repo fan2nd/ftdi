@@ -66,24 +66,32 @@ pub enum ClockBytesOut {
     /// The data is sent MSB first.
     ///
     /// The data will change to the next bit on the rising edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '1'**
     MsbPos = 0x10,
     /// Negative clock edge MSB first.
     ///
     /// The data is sent MSB first.
     ///
     /// The data will change to the next bit on the falling edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '0'**
     MsbNeg = 0x11,
     /// Positive clock edge LSB first.
     ///
     /// The first bit in will be the LSB of the first byte and so on.
     ///
     /// The data will change to the next bit on the rising edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '1'**
     LsbPos = 0x18,
     /// Negative clock edge LSB first.
     ///
     /// The first bit in will be the LSB of the first byte and so on.
     ///
     /// The data will change to the next bit on the falling edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '0'**
     LsbNeg = 0x19,
 }
 
@@ -101,24 +109,32 @@ pub enum ClockBitsOut {
     /// The data is sent MSB first (bit 7 first).
     ///
     /// The data will change to the next bit on the rising edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '1'**
     MsbPos = 0x12,
     /// Negative clock edge MSB first.
     ///
     /// The data is sent MSB first (bit 7 first).
     ///
-    /// The data will change to the next bit on the falling edge of the CLK pin.
+    /// The data will change to the next bit on the falling edge of the CLK pin.=
+    ///
+    /// **Use only if clk is set to '0'**
     MsbNeg = 0x13,
     /// Positive clock edge LSB first (bit 0 first).
     ///
     /// The first bit in will be the LSB of the first byte and so on.
     ///
     /// The data will change to the next bit on the rising edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '1'**
     LsbPos = 0x1A,
     /// Negative clock edge LSB first (bit 0 first).
     ///
     /// The first bit in will be the LSB of the first byte and so on.
     ///
     /// The data will change to the next bit on the falling edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '0'**
     LsbNeg = 0x1B,
 }
 
@@ -136,24 +152,32 @@ pub enum ClockBytesIn {
     /// The first bit in will be the MSB of the first byte and so on.
     ///
     /// The data will be sampled on the rising edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '0'**
     MsbPos = 0x20,
     /// Negative clock edge MSB first.
     ///
     /// The first bit in will be the MSB of the first byte and so on.
     ///
     /// The data will be sampled on the falling edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '1'**
     MsbNeg = 0x24,
     /// Positive clock edge LSB first.
     ///
     /// The first bit in will be the LSB of the first byte and so on.
     ///
     /// The data will be sampled on the rising edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '0'**
     LsbPos = 0x28,
     /// Negative clock edge LSB first.
     ///
     /// The first bit in will be the LSB of the first byte and so on.
     ///
     /// The data will be sampled on the falling edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '1'**
     LsbNeg = 0x2C,
 }
 
@@ -174,6 +198,8 @@ pub enum ClockBitsIn {
     /// byte sent back to the PC).
     ///
     /// The data will be sampled on the rising edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '0'**
     MsbPos = 0x22,
     /// Negative clock edge MSB first.
     ///
@@ -183,6 +209,8 @@ pub enum ClockBitsIn {
     /// byte sent back to the PC).
     ///
     /// The data will be sampled on the falling edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '1'**
     MsbNeg = 0x26,
     /// Positive clock edge LSB first.
     ///
@@ -192,6 +220,8 @@ pub enum ClockBitsIn {
     /// byte sent back to the PC).
     ///
     /// The data will be sampled on the rising edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '0'**
     LsbPos = 0x2A,
     /// Negative clock edge LSB first.
     ///
@@ -201,6 +231,8 @@ pub enum ClockBitsIn {
     /// byte sent back to the PC).
     ///
     /// The data will be sampled on the falling edge of the CLK pin.
+    ///
+    /// **Use only if clk is set to '1'**
     LsbNeg = 0x2E,
 }
 
@@ -215,12 +247,20 @@ pub enum ClockBitsIn {
 #[derive(Debug, Copy, Clone)]
 pub enum ClockBytes {
     /// MSB first, data in on positive edge, data out on negative edge.
+    ///
+    /// **Use only if clk is set to '0'**
     MsbPosIn = 0x31,
     /// MSB first, data in on negative edge, data out on positive edge.
+    ///
+    /// **Use only if clk is set to '1'**
     MsbNegIn = 0x34,
     /// LSB first, data in on positive edge, data out on negative edge.
+    ///
+    /// **Use only if clk is set to '0'**
     LsbPosIn = 0x39,
     /// LSB first, data in on negative edge, data out on positive edge.
+    ///
+    /// **Use only if clk is set to '1'**
     LsbNegIn = 0x3C,
 }
 
@@ -235,12 +275,20 @@ pub enum ClockBytes {
 #[derive(Debug, Copy, Clone)]
 pub enum ClockBits {
     /// MSB first, data in on positive edge, data out on negative edge.
+    ///
+    /// **Use only if clk is set to '0'**
     MsbPosIn = 0x33,
     /// MSB first, data in on negative edge, data out on positive edge.
+    ///
+    /// **Use only if clk is set to '1'**
     MsbNegIn = 0x36,
     /// LSB first, data in on positive edge, data out on negative edge.
+    ///
+    /// **Use only if clk is set to '0'**
     LsbPosIn = 0x3B,
     /// LSB first, data in on negative edge, data out on positive edge.
+    ///
+    /// **Use only if clk is set to '1'**
     LsbNegIn = 0x3E,
 }
 
@@ -254,8 +302,12 @@ pub enum ClockBits {
 #[derive(Debug, Copy, Clone)]
 pub enum ClockTMSOut {
     /// LSB first, TMS out on positive edge
+    ///
+    /// **Use only if clk is set to '1'**
     PosEdge = 0x4A,
     /// LSB first, TMS out on negative edge
+    ///  
+    /// **Use only if clk is set to '0'**
     NegEdge = 0x4B,
 }
 
@@ -269,12 +321,20 @@ pub enum ClockTMSOut {
 #[derive(Debug, Copy, Clone)]
 pub enum ClockTMS {
     /// LSB first, TMS out on positive edge, TDO in on positive edge.
+    ///
+    /// **Use only if clk is set to '1'**
     PosTMSPosTDO = 0x6A,
     /// LSB first, TMS out on positive edge, TDO in on negative edge.
+    ///
+    /// **Use only if clk is set to '1'**
     PosTMSNegTDO = 0x6E,
     /// LSB first, TMS out on negative edge, TDO in on positive edge.
+    ///
+    /// **Use only if clk is set to '0'**
     NegTMSPosTDO = 0x6B,
     /// LSB first, TMS out on negative edge, TDO in on negative edge.
+    ///
+    /// **Use only if clk is set to '0'**
     NegTMSNegTDO = 0x6F,
 }
 

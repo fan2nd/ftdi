@@ -18,7 +18,7 @@
 //!
 //! * Limited trait support: SPI, I2C, InputPin, and OutputPin traits are implemented.
 //! * Limited device support: FT232H, FT2232H, FT4232H.
-//! * Limited SPI modes support: MODE0, MODE2.
+//! * Limited SPI modes support: MODE0, MODE2. According to AN108-2.2.
 
 #![forbid(unsafe_code)]
 
@@ -30,6 +30,8 @@ mod list;
 mod mpsse;
 mod spi;
 mod swd;
+
+use std::task::Context;
 
 pub use ftdaye::Interface;
 use ftdaye::{ChipType, FtdiContext, FtdiError};
@@ -119,20 +121,21 @@ impl FtMpsse {
 
         let handle = handle.detach_and_claim_interface(interface as u8 - 1)?;
 
-        let this = Self {
-            ft: FtdiContext::new(handle, interface, max_packet_size).into_mpsse(mask)?,
-            chip_type,
-            lower: Default::default(),
-            upper: Default::default(),
-        };
+        let context = FtdiContext::new(handle, interface, max_packet_size).into_mpsse(mask)?;
         let mut cmd = MpsseCmdBuilder::new();
-        cmd.set_gpio_lower(this.lower.value, this.lower.direction)
-            .set_gpio_upper(this.upper.value, this.upper.direction)
+        // set all pin to input and value 0;
+        cmd.set_gpio_lower(0, 0)
+            .set_gpio_upper(0, 0)
             .disable_adaptive_data_clocking()
             .disable_loopback()
             .send_immediate();
-        this.write_read(cmd.as_slice(), &mut [])?;
-        Ok(this)
+        context.write_read(cmd.as_slice(), &mut [])?;
+        Ok(Self {
+            ft: context,
+            chip_type,
+            lower: Default::default(),
+            upper: Default::default(),
+        })
     }
 
     pub fn set_frequency(&self, frequency_hz: usize) -> Result<usize, FtdiError> {
