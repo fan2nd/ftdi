@@ -97,7 +97,7 @@ impl JtagDetectTdo {
         let mut idcodes = vec![Vec::new(); 8];
         let mut current_id = [0u32; 8];
         let mut bit_count = [0; 8];
-        let mut consecutive_zeros = [0; 8];
+        let mut consecutive_bypass = [0; 8];
 
         let read = self.shift_dr(ID_LEN * 2)?;
         // println!("read_buf{read:?}");
@@ -111,19 +111,19 @@ impl JtagDetectTdo {
                 // bypass
                 if bit_count[i] == 0 && !tdo_val {
                     idcodes[i].push(None);
-                    consecutive_zeros[i] += 1;
+                    consecutive_bypass[i] += 1;
                 } else {
                     current_id[i] = (current_id[i] >> 1) | if tdo_val { 0x8000_0000 } else { 0 };
                     bit_count[i] += 1;
-                    consecutive_zeros[i] = 0;
+                    consecutive_bypass[i] = 0;
                 }
-                // 连续32个0退出
-                if consecutive_zeros[i] == ID_LEN {
+                // 连续32个Bypass退出
+                if consecutive_bypass[i] == ID_LEN {
                     break;
                 }
                 // 每32位保存一个IDCODE
                 if bit_count[i] == ID_LEN {
-                    // 连续32个1退出
+                    // IDCODE无效退出
                     if current_id[i] == u32::MAX {
                         break;
                     }
@@ -278,7 +278,7 @@ impl JtagDetectTdi {
         let mut idcodes = Vec::new();
         let mut current_id = 0u32;
         let mut bit_count = 0;
-        let mut consecutive_zeros = 0;
+        let mut consecutive_bypass = 0;
 
         'outer: loop {
             let tdos = self.clock_tcks(0, tdi_val, ID_LEN)?; // 移入tdi_val
@@ -286,19 +286,19 @@ impl JtagDetectTdi {
                 // bypass
                 if bit_count == 0 && !tdo_val {
                     idcodes.push(None);
-                    consecutive_zeros += 1;
+                    consecutive_bypass += 1;
                 } else {
                     current_id = (current_id >> 1) | if tdo_val { 0x8000_0000 } else { 0 };
                     bit_count += 1;
-                    consecutive_zeros = 0;
+                    consecutive_bypass = 0;
                 }
-                // 连续32个0退出
-                if consecutive_zeros == ID_LEN {
+                // 连续32个Bypass退出
+                if consecutive_bypass == ID_LEN {
                     break 'outer;
                 }
                 // 每32位保存一个IDCODE
                 if bit_count == ID_LEN {
-                    // 连续32个1退出
+                    // IDCODE无效退出
                     if current_id == u32::MAX {
                         break 'outer;
                     }
