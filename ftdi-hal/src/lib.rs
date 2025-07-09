@@ -31,8 +31,6 @@ mod mpsse;
 mod spi;
 mod swd;
 
-use std::task::Context;
-
 pub use ftdaye::Interface;
 use ftdaye::{ChipType, FtdiContext, FtdiError};
 pub use gpio::{InputPin, OutputPin};
