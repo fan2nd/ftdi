@@ -13,7 +13,7 @@ fn main() {
     let mpsse = FtMpsse::open(&devices[0].usb_device, devices[0].interface[0], 0).unwrap();
     mpsse.set_frequency(30_000_000).unwrap();
     let mtx = Arc::new(Mutex::new(mpsse));
-    let jtag = Jtag::new(mtx).unwrap();
+    let mut jtag = Jtag::new(mtx).unwrap();
     let ids = jtag.scan_with(true).unwrap();
     println!("Scan Result:{ids:x?}");
     println!("Finish Scan Using {:?}", now.elapsed());

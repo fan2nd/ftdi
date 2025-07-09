@@ -139,7 +139,7 @@ impl FtMpsse {
         const MIN_FREQUENCY: usize = 6_000_000 / (u16::MAX as usize + 1);
         let mut max_frequency = self.chip_type.max_frequency();
         if frequency_hz > max_frequency || frequency_hz < 91 {
-            log::warn!("speed has out of range[{MIN_FREQUENCY}-{max_frequency}Hz]",)
+            log::error!("speed has out of range[{MIN_FREQUENCY}-{max_frequency}Hz]",)
         }
         let mut cmd = MpsseCmdBuilder::new();
         let mut divide = max_frequency / frequency_hz;

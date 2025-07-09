@@ -31,10 +31,10 @@ impl SwdCmdBuilder {
     const BITS_OUT: ClockBitsOut = ClockBitsOut::LsbPos;
     const BYTES_IN: ClockBytesIn = ClockBytesIn::LsbNeg;
     const BYTES_OUT: ClockBytesOut = ClockBytesOut::LsbPos;
-    pub fn new() -> Self {
+    fn new() -> Self {
         SwdCmdBuilder(MpsseCmdBuilder::new())
     }
-    pub fn swd_enable(&mut self, lock: &MutexGuard<FtMpsse>) -> &mut Self {
+    fn swd_enable(&mut self, lock: &MutexGuard<FtMpsse>) -> &mut Self {
         const ONES: [u8; 8] = [0xff; 8]; // 64 ones
         const SEQUENCE: [u8; 2] = [0x79, 0xe7]; // Activation pattern
 
@@ -45,34 +45,34 @@ impl SwdCmdBuilder {
             .send_immediate();
         self
     }
-    pub fn swd_out(&mut self, lock: &MutexGuard<FtMpsse>) -> &mut Self {
+    fn swd_out(&mut self, lock: &MutexGuard<FtMpsse>) -> &mut Self {
         self.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO);
         self
     }
-    pub fn swd_in(&mut self, lock: &MutexGuard<FtMpsse>) -> &mut Self {
+    fn swd_in(&mut self, lock: &MutexGuard<FtMpsse>) -> &mut Self {
         self.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK);
         self
     }
-    pub fn swd_trn(&mut self) -> &mut Self {
+    fn swd_trn(&mut self) -> &mut Self {
         self.clock_bits_out(Self::BITS_OUT, 0xff, 1);
         self
     }
-    pub fn swd_send_request(&mut self, request: u8) -> &mut Self {
+    fn swd_send_request(&mut self, request: u8) -> &mut Self {
         self.clock_bytes_out(Self::BYTES_OUT, &[request]); // // Send request
         self
     }
-    pub fn swd_read_response(&mut self) -> &mut Self {
+    fn swd_read_response(&mut self) -> &mut Self {
         self.clock_bits_in(Self::BITS_IN, 3);
         self
     }
-    pub fn swd_read_data(&mut self) -> &mut Self {
+    fn swd_read_data(&mut self) -> &mut Self {
         const DATA_BYTES: usize = 4;
         const PARITY_BITS: usize = 1;
         self.clock_bytes_in(Self::BYTES_IN, DATA_BYTES)
             .clock_bits_in(Self::BITS_IN, PARITY_BITS);
         self
     }
-    pub fn swd_write_data(&mut self, value: u32) -> &mut Self {
+    fn swd_write_data(&mut self, value: u32) -> &mut Self {
         const PARITY_BITS: usize = 1;
         let bytes = value.to_le_bytes();
         let parity = (value.count_ones() & 0x01) as u8;
@@ -125,7 +125,6 @@ impl Swd {
     pub fn new(mtx: Arc<Mutex<FtMpsse>>) -> Result<Self, FtdiError> {
         {
             log::warn!("Swd module has not been tested yet!");
-            log::warn!("Swd module need connect AD1 and AD2!");
             let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
             lock.alloc_pin(Pin::Lower(0), PinUse::Swd);
             lock.alloc_pin(Pin::Lower(1), PinUse::Swd);

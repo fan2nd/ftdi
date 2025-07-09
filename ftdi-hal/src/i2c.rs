@@ -36,7 +36,6 @@ impl I2c {
     pub fn new(mtx: Arc<Mutex<FtMpsse>>) -> Result<I2c, FtdiError> {
         {
             log::warn!("IIC module has not been tested yet!");
-            log::warn!("IIC module need connect AD1 and AD2!");
             let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
 
             lock.alloc_pin(Pin::Lower(0), PinUse::I2c);

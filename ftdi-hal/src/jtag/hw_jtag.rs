@@ -1,63 +1,78 @@
 use crate::ftdaye::FtdiError;
-use crate::mpsse::{
-    ClockBits, ClockBitsIn, ClockBitsOut, ClockBytes, ClockBytesIn, ClockBytesOut, ClockTMS,
-    ClockTMSOut, MpsseCmdBuilder,
-};
+use crate::mpsse::{ClockBits, ClockBytes, ClockTMS, ClockTMSOut, MpsseCmdBuilder};
 use crate::{FtMpsse, OutputPin, Pin, PinUse};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
-const BYTES_WRITE: ClockBytesOut = ClockBytesOut::LsbNeg;
-const BYTES_READ: ClockBytesIn = ClockBytesIn::LsbPos;
+// const BYTES_WRITE: ClockBytesOut = ClockBytesOut::LsbNeg;
+// const BYTES_READ: ClockBytesIn = ClockBytesIn::LsbPos;
 const BYTES_WRITE_READ: ClockBytes = ClockBytes::LsbPosIn;
 
-const BITS_WRITE: ClockBitsOut = ClockBitsOut::LsbNeg;
-const BITS_READ: ClockBitsIn = ClockBitsIn::LsbPos;
+// const BITS_WRITE: ClockBitsOut = ClockBitsOut::LsbNeg;
+// const BITS_READ: ClockBitsIn = ClockBitsIn::LsbPos;
 const BITS_WRITE_READ: ClockBits = ClockBits::LsbPosIn;
+
+const TMS_WRITE: ClockTMSOut = ClockTMSOut::NegEdge;
+const TMS_WRITE_READ: ClockTMS = ClockTMS::NegTMSPosTDO;
 
 pub struct JtagCmdBuilder(MpsseCmdBuilder);
 impl JtagCmdBuilder {
     fn new() -> Self {
         JtagCmdBuilder(MpsseCmdBuilder::new())
     }
-    fn any2idle(&mut self) -> &mut Self {
-        self.0
-            .clock_tms_out(ClockTMSOut::NegEdge, 0b0001_1111, true, 6);
+    fn jtag_any2idle(&mut self) -> &mut Self {
+        self.0.clock_tms_out(TMS_WRITE, 0b0001_1111, true, 6);
         self
     }
-    fn idle_cycle(&mut self) -> &mut Self {
-        self.0.clock_tms_out(ClockTMSOut::NegEdge, 0, true, 7);
+    fn jtag_idle_cycle(&mut self) -> &mut Self {
+        self.0.clock_tms_out(TMS_WRITE, 0, true, 7);
         self
     }
-    fn idle2ir(&mut self) -> &mut Self {
-        self.0
-            .clock_tms_out(ClockTMSOut::NegEdge, 0b0000_0011, true, 4);
+    fn jtag_idle2ir(&mut self) -> &mut Self {
+        self.0.clock_tms_out(TMS_WRITE, 0b0000_0011, true, 4);
         self
     }
-    fn ir_last(&mut self, tdi: bool) -> &mut Self {
-        self.0
-            .clock_tms(ClockTMS::NegTMSPosTDO, 0b0000_0001, tdi, 1);
+    fn jtag_ir_exit2dr(&mut self) -> &mut Self {
+        self.0.clock_tms_out(TMS_WRITE, 0b0000_0011, true, 4);
         self
     }
-    fn ir_exit2dr(&mut self) -> &mut Self {
-        self.0
-            .clock_tms_out(ClockTMSOut::NegEdge, 0b0000_0011, true, 4);
-        self
-    }
-    fn idle2dr(&mut self) -> &mut Self {
-        self.0
-            .clock_tms_out(ClockTMSOut::NegEdge, 0b0000_0001, true, 3);
-        self
-    }
-    fn dr_last(&mut self, tdi: bool) -> &mut Self {
-        self.0
-            .clock_tms(ClockTMS::NegTMSPosTDO, 0b0000_0001, tdi, 1);
+    fn jtag_idle2dr(&mut self) -> &mut Self {
+        self.0.clock_tms_out(TMS_WRITE, 0b0000_0001, true, 3);
         self
     }
     fn dr_exit2idle(&mut self) -> &mut Self {
-        self.0
-            .clock_tms_out(ClockTMSOut::NegEdge, 0b0000_0001, true, 2);
+        self.0.clock_tms_out(TMS_WRITE, 0b0000_0001, true, 2);
         self
+    }
+    fn jtag_shift(&mut self, data: &[u8], bits_count: usize) -> &mut Self {
+        let last_bit_is_bit7 = (bits_count & 0b111) == 0;
+        let bytes_count = if last_bit_is_bit7 {
+            (bits_count >> 3) - 1
+        } else {
+            bits_count >> 3
+        };
+        let remain_bits = (bits_count & 0b111) - 1; // not include full bytes and last bit
+        let last_bit = data[bytes_count] >> data[bytes_count] >> remain_bits == 1;
+        self.clock_bytes(BYTES_WRITE_READ, &data[0..bytes_count])
+            .clock_bits(BITS_WRITE_READ, data[bytes_count], remain_bits)
+            .clock_tms(TMS_WRITE_READ, 0b0000_0001, last_bit, 1);
+        self
+    }
+    fn jtag_parse_single_shift(response: &mut [u8], bits_count: usize) -> usize {
+        let last_bit_is_bit7 = (bits_count & 0b111) == 0;
+        let bytes_count = if last_bit_is_bit7 {
+            (bits_count >> 3) - 1
+        } else {
+            bits_count >> 3
+        };
+        let remain_bits = (bits_count & 0b111) - 1; // not include full bytes and last bit
+        if remain_bits == 0 {
+            response[bytes_count] >>= 7
+        } else {
+            response[bytes_count] >>= 8 - remain_bits;
+            response[bytes_count] |= (response[bytes_count + 1] & 0b1000_0000) >> (7 - remain_bits);
+        }
+        bytes_count + 1
     }
 }
 impl Deref for JtagCmdBuilder {
@@ -74,6 +89,7 @@ impl DerefMut for JtagCmdBuilder {
 pub struct Jtag {
     /// Parent FTDI device.
     mtx: Arc<Mutex<FtMpsse>>,
+    is_ilde: bool,
     direction: Option<[OutputPin; 4]>,
 }
 impl Drop for Jtag {
@@ -104,6 +120,7 @@ impl Jtag {
         }
         Ok(Self {
             mtx,
+            is_ilde: false,
             direction: Default::default(),
         })
     }
@@ -125,17 +142,18 @@ impl Jtag {
         self.direction = Some([tck, tdi, tdo, tms]);
         Ok(())
     }
-    pub fn goto_idle(&self) -> Result<(), FtdiError> {
+    pub fn goto_idle(&mut self) -> Result<(), FtdiError> {
         let mut cmd = JtagCmdBuilder::new();
-        cmd.any2idle().send_immediate();
+        cmd.jtag_any2idle().send_immediate();
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.write_read(cmd.as_slice(), &mut [])?;
+        self.is_ilde = true;
         Ok(())
     }
-    pub fn scan_with(&self, tdi: bool) -> Result<Vec<Option<u32>>, FtdiError> {
+    pub fn scan_with(&mut self, tdi: bool) -> Result<Vec<Option<u32>>, FtdiError> {
         const ID_LEN: usize = 32;
         let mut cmd = JtagCmdBuilder::new();
-        cmd.any2idle().idle2dr();
+        cmd.jtag_any2idle().jtag_idle2dr();
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.write_read(cmd.as_slice(), &mut [])?;
         let tdi = if tdi { vec![0xff; 4] } else { vec![0; 4] };
@@ -185,21 +203,33 @@ impl Jtag {
         self.goto_idle()?;
         Ok(idcodes)
     }
-    fn read_reg(&self, ir: &[u8], irlen: usize, drlen: usize) -> Result<u128, FtdiError> {
-        let mut cmd = JtagCmdBuilder::new();
-        cmd.idle2ir();
-        todo!()
-    }
-    fn write_reg(&self, ir: &[u8], irlen: usize, dr: u128, drlen: usize) -> Result<(), FtdiError> {
-        todo!()
-    }
-    fn write_read(
+    pub fn write_read(
         &self,
         ir: &[u8],
         irlen: usize,
-        dr: u128,
+        dr: &[u8],
         drlen: usize,
     ) -> Result<Vec<u8>, FtdiError> {
-        todo!()
+        log::warn!("Not test");
+        let mut cmd = JtagCmdBuilder::new();
+        if !self.is_ilde {
+            cmd.jtag_any2idle();
+        }
+        cmd.jtag_idle2ir()
+            .jtag_shift(ir, irlen)
+            .jtag_ir_exit2dr()
+            .jtag_shift(dr, drlen)
+            .dr_exit2idle()
+            .jtag_idle_cycle()
+            .send_immediate();
+        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let mut read_buf = vec![0; cmd.read_len()];
+        lock.write_read(cmd.as_slice(), &mut read_buf)?;
+        let len = JtagCmdBuilder::jtag_parse_single_shift(&mut read_buf, drlen);
+
+        if read_buf.len() > len {
+            read_buf.pop();
+        }
+        Ok(read_buf)
     }
 }

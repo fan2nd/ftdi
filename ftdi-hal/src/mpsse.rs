@@ -316,6 +316,11 @@ impl MpsseCmdBuilder {
         self.cmd.as_slice()
     }
 
+    /// Get the response length of current MPSSE command.
+    pub fn read_len(&self) -> usize {
+        self.read_len
+    }
+
     /// Set the MPSSE clock frequency using provided
     /// divisor value and clock divider configuration.
     /// Both parameters are device dependent.
@@ -490,10 +495,10 @@ impl MpsseCmdBuilder {
     /// This will panic for data lengths greater than `u16::MAX + 1`.
     pub fn clock_bytes_out(&mut self, mode: ClockBytesOut, data: &[u8]) -> &mut Self {
         let mut len = data.len();
-        assert!(
-            len > 0 && len <= 65536,
-            "data length should be in 1..=u16::MAX+1"
-        );
+        if len == 0 {
+            return self;
+        }
+        assert!(len <= 65536, "data length should be in 1..=u16::MAX+1");
         len -= 1;
         self.cmd
             .extend_from_slice(&[mode as u8, (len & 0xFF) as u8, ((len >> 8) & 0xFF) as u8]);
@@ -512,10 +517,10 @@ impl MpsseCmdBuilder {
     /// * `len` - Number of bytes to clock in.
     ///   This will panic for values greater than `u16::MAX + 1`.
     pub fn clock_bytes_in(&mut self, mode: ClockBytesIn, mut len: usize) -> &mut Self {
-        assert!(
-            len > 0 && len <= 65536,
-            "data length should be in 1..=u16::MAX+1"
-        );
+        if len == 0 {
+            return self;
+        }
+        assert!(len <= 65536, "data length should be in 1..=u16::MAX+1");
         self.read_len += len;
         len -= 1;
         self.cmd
@@ -528,10 +533,10 @@ impl MpsseCmdBuilder {
     /// This will panic for data lengths greater than `u16::MAX + 1`.
     pub fn clock_bytes(&mut self, mode: ClockBytes, data: &[u8]) -> &mut Self {
         let mut len = data.len();
-        assert!(
-            len > 0 && len <= 65536,
-            "data length should be in 1..=u16::MAX+1"
-        );
+        if len == 0 {
+            return self;
+        }
+        assert!(len <= 65536, "data length should be in 1..=u16::MAX+1");
         self.read_len += len;
         len -= 1;
         self.cmd
@@ -549,7 +554,10 @@ impl MpsseCmdBuilder {
     /// * `len` - Number of bits to clock out.
     ///   This will panic for values greater than 8.
     pub fn clock_bits_out(&mut self, mode: ClockBitsOut, data: u8, len: usize) -> &mut Self {
-        assert!(len > 0 && len <= 8, "data length should be in 1..=8");
+        if len == 0 {
+            return self;
+        }
+        assert!(len <= 8, "data length should be in 1..=8");
         self.cmd
             .extend_from_slice(&[mode as u8, (len - 1) as u8, data]);
         self
@@ -563,7 +571,10 @@ impl MpsseCmdBuilder {
     /// * `len` - Number of bits to clock in.
     ///   This will panic for values greater than 8.
     pub fn clock_bits_in(&mut self, mode: ClockBitsIn, len: usize) -> &mut Self {
-        assert!(len > 0 && len <= 8, "data length should be in 1..=8");
+        if len == 0 {
+            return self;
+        }
+        assert!(len <= 8, "data length should be in 1..=8");
         self.read_len += 1;
         self.cmd.extend_from_slice(&[mode as u8, (len - 1) as u8]);
         self
@@ -577,7 +588,10 @@ impl MpsseCmdBuilder {
     /// * `len` - Number of bits to clock in.
     ///   This will panic for values greater than 8.
     pub fn clock_bits(&mut self, mode: ClockBits, data: u8, len: usize) -> &mut Self {
-        assert!(len > 0 && len <= 8, "data length should be in 1..=8");
+        if len == 0 {
+            return self;
+        }
+        assert!(len <= 8, "data length should be in 1..=8");
         self.read_len += 1;
         self.cmd
             .extend_from_slice(&[mode as u8, (len - 1) as u8, data]);
@@ -600,7 +614,10 @@ impl MpsseCmdBuilder {
         tdi: bool,
         len: usize,
     ) -> &mut Self {
-        assert!(len > 0 && len <= 7, "data length should be in 1..=7");
+        if len == 0 {
+            return self;
+        }
+        assert!(len <= 7, "data length should be in 1..=7");
         if tdi {
             data |= 0x80;
         }
@@ -619,7 +636,10 @@ impl MpsseCmdBuilder {
     /// * `len` - Number of bits to clock out.
     ///   This will panic for values greater than 7.
     pub fn clock_tms(&mut self, mode: ClockTMS, mut data: u8, tdi: bool, len: usize) -> &mut Self {
-        assert!(len > 0 && len <= 7, "data length should be in 1..=7");
+        if len == 0 {
+            return self;
+        }
+        assert!(len <= 7, "data length should be in 1..=7");
         self.read_len += 1;
         if tdi {
             data |= 0x80;
