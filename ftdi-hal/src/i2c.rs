@@ -25,7 +25,10 @@ pub struct I2c {
 
 impl Drop for I2c {
     fn drop(&mut self) {
+        let mut cmd = MpsseCmdBuilder::new();
+        cmd.enable_3phase_data_clocking(false).send_immediate();
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        lock.write_read(cmd.as_slice(), &mut []).unwrap();
         lock.free_pin(Pin::Lower(0));
         lock.free_pin(Pin::Lower(1));
         lock.free_pin(Pin::Lower(2));
@@ -54,7 +57,7 @@ impl I2c {
             // set GPIO pins to new state
             let mut cmd = MpsseCmdBuilder::new();
             cmd.set_gpio_lower(lock.lower.value, lock.lower.direction)
-                .enable_3phase_data_clocking()
+                .enable_3phase_data_clocking(true)
                 .send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
         }

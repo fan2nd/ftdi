@@ -121,13 +121,14 @@ impl FtMpsse {
 
         let context = FtdiContext::new(handle, interface, max_packet_size).into_mpsse(mask)?;
         let mut cmd = MpsseCmdBuilder::new();
-        // set all pin to input and value 0;
-        cmd.set_gpio_lower(0, 0)
-            .set_gpio_upper(0, 0)
-            .disable_adaptive_data_clocking()
-            .disable_loopback()
+        cmd.set_gpio_lower(0, 0) // set all pin to input and value 0;
+            .set_gpio_upper(0, 0) // set all pin to input and value 0;
+            .enable_loopback(false)
+            .enable_3phase_data_clocking(false)
+            .enable_adaptive_data_clocking(false)
             .send_immediate();
         context.write_read(cmd.as_slice(), &mut [])?;
+
         Ok(Self {
             ft: context,
             chip_type,

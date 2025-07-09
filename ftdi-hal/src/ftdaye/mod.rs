@@ -31,8 +31,7 @@ impl ChipType {
     pub fn mpsse_list(self) -> &'static [Interface] {
         match self {
             ChipType::FT232H => &[Interface::A],
-            ChipType::FT2232H => &[Interface::A, Interface::B],
-            ChipType::FT4232H => &[Interface::A, Interface::B],
+            ChipType::FT2232H | ChipType::FT4232H => &[Interface::A, Interface::B],
             _ => &[],
         }
     }

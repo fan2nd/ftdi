@@ -121,10 +121,12 @@ pub struct Jtag {
     /// Parent FTDI device.
     mtx: Arc<Mutex<FtMpsse>>,
     is_ilde: bool,
+    adaptive_data_clocking: bool,
     direction: Option<[OutputPin; 4]>,
 }
 impl Drop for Jtag {
     fn drop(&mut self) {
+        self.adaptive_clock(false).unwrap();
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         lock.free_pin(Pin::Lower(0));
         lock.free_pin(Pin::Lower(1));
@@ -146,15 +148,31 @@ impl Jtag {
             // https://ftdichip.com/Support/Documents/AppNotes/AN_108_Command_Processor_for_MPSSE_and_MCU_Host_Bus_Emulation_Modes.pdf
             let mut cmd = MpsseCmdBuilder::new();
             cmd.set_gpio_lower(lock.lower.value, lock.lower.direction)
-                .disable_3phase_data_clocking()
+                .enable_3phase_data_clocking(false)
                 .send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
         }
         Ok(Self {
             mtx,
             is_ilde: false,
+            adaptive_data_clocking: false,
             direction: Default::default(),
         })
+    }
+    pub fn adaptive_clock(&mut self, enable: bool) -> Result<(), FtdiError> {
+        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let mut cmd = MpsseCmdBuilder::new();
+        if enable {
+            log::info!("Use {:?} as RTCK.", Pin::Lower(7));
+            lock.alloc_pin(Pin::Lower(7), PinUse::Jtag);
+        } else {
+            log::info!("Free {:?}.", Pin::Lower(7));
+            lock.free_pin(Pin::Lower(7));
+        }
+        cmd.enable_adaptive_data_clocking(enable);
+        lock.write_read(cmd.as_slice(), &mut [])?;
+        self.adaptive_data_clocking = enable;
+        Ok(())
     }
     pub fn with_direction(
         &mut self,

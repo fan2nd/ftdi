@@ -15,7 +15,7 @@
 #[repr(u8)]
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
-pub enum MpsseCmd {
+enum MpsseCmd {
     /// Used by [`set_gpio_lower`][`MpsseCmdBuilder::set_gpio_lower`].
     SetDataBitsLowbyte = 0x80,
     /// Used by [`gpio_lower`][`MpsseCmdBuilder::gpio_lower`].
@@ -390,37 +390,22 @@ impl MpsseCmdBuilder {
             Some(false) => self.cmd.push(MpsseCmd::DisableClockDivide as u8),
             None => {}
         };
-
-        self.cmd.push(MpsseCmd::SetClockFrequency as u8);
-        self.cmd.push((divisor & 0xFF) as u8);
-        self.cmd.push(((divisor >> 8) & 0xFF) as u8);
+        self.cmd.extend_from_slice(&[
+            MpsseCmd::SetClockFrequency as u8,
+            (divisor & 0xFF) as u8,
+            ((divisor >> 8) & 0xFF) as u8,
+        ]);
 
         self
     }
 
-    /// Enable the MPSSE loopback state.
-    pub fn enable_loopback(&mut self) -> &mut Self {
-        self.cmd.push(MpsseCmd::EnableLoopback as u8);
-        self
-    }
-
-    /// Disable the MPSSE loopback state.
-    pub fn disable_loopback(&mut self) -> &mut Self {
-        self.cmd.push(MpsseCmd::DisableLoopback as u8);
-        self
-    }
-    /// Disable 3 phase data clocking.
-    ///
-    /// This is only available on FTx232H devices.
-    ///
-    /// This will give a 2 stage data shift which is the default state.
-    ///
-    /// It will appears as:
-    ///
-    /// 1. Data setup for 1/2 clock period
-    /// 2. Pulse clock for 1/2 clock period
-    pub fn disable_3phase_data_clocking(&mut self) -> &mut Self {
-        self.cmd.push(MpsseCmd::Disable3PhaseClocking as u8);
+    /// MPSSE loopback state.
+    pub fn enable_loopback(&mut self, enable: bool) -> &mut Self {
+        if enable {
+            self.cmd.push(MpsseCmd::EnableLoopback as u8);
+        } else {
+            self.cmd.push(MpsseCmd::DisableLoopback as u8);
+        }
         self
     }
 
@@ -437,24 +422,33 @@ impl MpsseCmdBuilder {
     /// 1. Data setup for 1/2 clock period
     /// 2. Pulse clock for 1/2 clock period
     /// 3. Data hold for 1/2 clock period
-    pub fn enable_3phase_data_clocking(&mut self) -> &mut Self {
-        self.cmd.push(MpsseCmd::Enable3PhaseClocking as u8);
+    ///
+    /// Disable 3 phase data clocking.
+    ///
+    /// This will give a 2 stage data shift which is the default state.
+    ///
+    /// It will appears as:
+    ///
+    /// 1. Data setup for 1/2 clock period
+    /// 2. Pulse clock for 1/2 clock period
+    pub fn enable_3phase_data_clocking(&mut self, enable: bool) -> &mut Self {
+        if enable {
+            self.cmd.push(MpsseCmd::Enable3PhaseClocking as u8);
+        } else {
+            self.cmd.push(MpsseCmd::Disable3PhaseClocking as u8);
+        }
         self
     }
 
     /// Enable adaptive data clocking.
     ///
     /// This is only available on FTx232H devices.
-    pub fn enable_adaptive_data_clocking(&mut self) -> &mut Self {
-        self.cmd.push(MpsseCmd::EnableAdaptiveClocking as u8);
-        self
-    }
-
-    /// Enable adaptive data clocking.
-    ///
-    /// This is only available on FTx232H devices.
-    pub fn disable_adaptive_data_clocking(&mut self) -> &mut Self {
-        self.cmd.push(MpsseCmd::DisableAdaptiveClocking as u8);
+    pub fn enable_adaptive_data_clocking(&mut self, enable: bool) -> &mut Self {
+        if enable {
+            self.cmd.push(MpsseCmd::EnableAdaptiveClocking as u8);
+        } else {
+            self.cmd.push(MpsseCmd::DisableAdaptiveClocking as u8);
+        }
         self
     }
 

@@ -136,9 +136,6 @@ impl Swd {
             // set GPIO pins to new state
             let mut cmd = MpsseCmdBuilder::new();
             cmd.set_gpio_lower(lock.lower.value, lock.lower.direction)
-                .disable_adaptive_data_clocking()
-                .disable_loopback()
-                .enable_3phase_data_clocking()
                 .send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
         }
