@@ -125,7 +125,7 @@ impl FtMpsse {
             .set_gpio_upper(0, 0) // set all pin to input and value 0;
             .enable_loopback(false)
             .enable_3phase_data_clocking(false)
-            .enable_adaptive_data_clocking(false)
+            .enable_adaptive_clocking(false)
             .send_immediate();
         context.write_read(cmd.as_slice(), &mut [])?;
 

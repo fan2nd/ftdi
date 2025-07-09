@@ -121,7 +121,7 @@ pub struct Jtag {
     /// Parent FTDI device.
     mtx: Arc<Mutex<FtMpsse>>,
     is_ilde: bool,
-    adaptive_data_clocking: bool,
+    adaptive_clocking: bool,
     direction: Option<[OutputPin; 4]>,
 }
 impl Drop for Jtag {
@@ -155,23 +155,26 @@ impl Jtag {
         Ok(Self {
             mtx,
             is_ilde: false,
-            adaptive_data_clocking: false,
+            adaptive_clocking: false,
             direction: Default::default(),
         })
     }
-    pub fn adaptive_clock(&mut self, enable: bool) -> Result<(), FtdiError> {
+    pub fn adaptive_clock(&mut self, state: bool) -> Result<(), FtdiError> {
+        if self.adaptive_clocking == state {
+            return Ok(());
+        }
         let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
         let mut cmd = MpsseCmdBuilder::new();
-        if enable {
+        if state {
             log::info!("Use {:?} as RTCK.", Pin::Lower(7));
             lock.alloc_pin(Pin::Lower(7), PinUse::Jtag);
         } else {
             log::info!("Free {:?}.", Pin::Lower(7));
             lock.free_pin(Pin::Lower(7));
         }
-        cmd.enable_adaptive_data_clocking(enable);
+        cmd.enable_adaptive_clocking(state);
         lock.write_read(cmd.as_slice(), &mut [])?;
-        self.adaptive_data_clocking = enable;
+        self.adaptive_clocking = state;
         Ok(())
     }
     pub fn with_direction(

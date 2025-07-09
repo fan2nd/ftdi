@@ -26,7 +26,7 @@ enum MpsseCmd {
     GetDataBitsHighbyte = 0x83,
     /// Used by [`enable_loopback`][`MpsseCmdBuilder::enable_loopback`].
     EnableLoopback = 0x84,
-    /// Used by [`disable_loopback`][`MpsseCmdBuilder::disable_loopback`].
+    /// Used by [`enable_loopback`][`MpsseCmdBuilder::enable_loopback`].
     DisableLoopback = 0x85,
     /// Used by [`set_clock`][`MpsseCmdBuilder::set_clock`].
     SetClockFrequency = 0x86,
@@ -42,14 +42,14 @@ enum MpsseCmd {
     EnableClockDivide = 0x8B,
     /// Used by [`enable_3phase_data_clocking`][`MpsseCmdBuilder::enable_3phase_data_clocking`].
     Enable3PhaseClocking = 0x8C,
-    /// Used by [`disable_3phase_data_clocking`][`MpsseCmdBuilder::disable_3phase_data_clocking`].
+    /// Used by [`enable_3phase_data_clocking`][`MpsseCmdBuilder::enable_3phase_data_clocking`].
     Disable3PhaseClocking = 0x8D,
-    /// Used by [`disable_adaptive_data_clocking`][`MpsseCmdBuilder::disable_adaptive_data_clocking`].
+    /// Used by [`enable_adaptive_clocking`][`MpsseCmdBuilder::enable_adaptive_clocking`].
     EnableAdaptiveClocking = 0x96,
-    /// Used by [`enable_adaptive_data_clocking`][`MpsseCmdBuilder::enable_adaptive_data_clocking`].
+    /// Used by [`enable_adaptive_clocking`][`MpsseCmdBuilder::enable_adaptive_clocking`].
     DisableAdaptiveClocking = 0x97,
-    /// This command is only available to FT232
-    EnableDriveOnlyZero = 0x9E,
+    // This command is only available to FT232
+    // EnableDriveOnlyZero = 0x9E,
 }
 
 /// Modes for clocking data out of the FTDI device.
@@ -395,13 +395,12 @@ impl MpsseCmdBuilder {
             (divisor & 0xFF) as u8,
             ((divisor >> 8) & 0xFF) as u8,
         ]);
-
         self
     }
 
     /// MPSSE loopback state.
-    pub fn enable_loopback(&mut self, enable: bool) -> &mut Self {
-        if enable {
+    pub fn enable_loopback(&mut self, state: bool) -> &mut Self {
+        if state {
             self.cmd.push(MpsseCmd::EnableLoopback as u8);
         } else {
             self.cmd.push(MpsseCmd::DisableLoopback as u8);
@@ -431,8 +430,8 @@ impl MpsseCmdBuilder {
     ///
     /// 1. Data setup for 1/2 clock period
     /// 2. Pulse clock for 1/2 clock period
-    pub fn enable_3phase_data_clocking(&mut self, enable: bool) -> &mut Self {
-        if enable {
+    pub fn enable_3phase_data_clocking(&mut self, state: bool) -> &mut Self {
+        if state {
             self.cmd.push(MpsseCmd::Enable3PhaseClocking as u8);
         } else {
             self.cmd.push(MpsseCmd::Disable3PhaseClocking as u8);
@@ -440,11 +439,11 @@ impl MpsseCmdBuilder {
         self
     }
 
-    /// Enable adaptive data clocking.
+    /// Enable adaptive clocking.
     ///
     /// This is only available on FTx232H devices.
-    pub fn enable_adaptive_data_clocking(&mut self, enable: bool) -> &mut Self {
-        if enable {
+    pub fn enable_adaptive_clocking(&mut self, state: bool) -> &mut Self {
+        if state {
             self.cmd.push(MpsseCmd::EnableAdaptiveClocking as u8);
         } else {
             self.cmd.push(MpsseCmd::DisableAdaptiveClocking as u8);
