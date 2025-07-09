@@ -43,7 +43,7 @@ impl JtagCmdBuilder {
         self.0.clock_tms_out(TMS_WRITE, 0b0000_0001, true, 3);
         self
     }
-    fn dr_exit2idle(&mut self) -> &mut Self {
+    fn jtag_dr_exit2idle(&mut self) -> &mut Self {
         self.0.clock_tms_out(TMS_WRITE, 0b0000_0001, true, 2);
         self
     }
@@ -244,7 +244,7 @@ impl Jtag {
             .jtag_shift_write(ir, irlen)
             .jtag_ir_exit2dr()
             .jtag_shift_write(dr, drlen)
-            .dr_exit2idle()
+            .jtag_dr_exit2idle()
             .jtag_idle_cycle()
             .send_immediate();
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
@@ -261,7 +261,7 @@ impl Jtag {
             .jtag_shift_write(ir, irlen)
             .jtag_ir_exit2dr()
             .jtag_shift_read(drlen)
-            .dr_exit2idle()
+            .jtag_dr_exit2idle()
             .jtag_idle_cycle()
             .send_immediate();
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
@@ -290,7 +290,7 @@ impl Jtag {
             .jtag_shift_write(ir, irlen)
             .jtag_ir_exit2dr()
             .jtag_shift(dr, drlen)
-            .dr_exit2idle()
+            .jtag_dr_exit2idle()
             .jtag_idle_cycle()
             .send_immediate();
         let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
