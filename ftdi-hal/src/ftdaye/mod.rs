@@ -220,7 +220,7 @@ impl FtdiContext {
             }
             Result::<(), FtdiError>::Ok(())
         };
-        let result = block_on(async { zip(write, read).await });
+        let result = block_on(zip(write, read));
         if result.0.is_err() {
             result.0
         } else if result.1.is_err() {
