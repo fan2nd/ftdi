@@ -13,7 +13,6 @@
 /// * [`ClockBytes`]
 /// * [`ClockBits`]
 #[repr(u8)]
-#[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
 enum MpsseCmd {
     /// Used by [`set_gpio_lower`][`MpsseCmdBuilder::set_gpio_lower`].
@@ -33,9 +32,9 @@ enum MpsseCmd {
     /// Used by [`send_immediate`][`MpsseCmdBuilder::send_immediate`].
     SendImmediate = 0x87,
     /// Used by [`wait_on_io_high`][`MpsseCmdBuilder::wait_on_io_high`].
-    WaitOnIOHigh = 0x88,
+    _WaitOnIOHigh = 0x88,
     /// Used by [`wait_on_io_low`][`MpsseCmdBuilder::wait_on_io_low`].
-    WaitOnIOLow = 0x89,
+    _WaitOnIOLow = 0x89,
     /// Used by [`set_clock`][`MpsseCmdBuilder::set_clock`].
     DisableClockDivide = 0x8A,
     /// Used by [`set_clock`][`MpsseCmdBuilder::set_clock`].
@@ -49,7 +48,7 @@ enum MpsseCmd {
     /// Used by [`enable_adaptive_clocking`][`MpsseCmdBuilder::enable_adaptive_clocking`].
     DisableAdaptiveClocking = 0x97,
     // This command is only available to FT232
-    // EnableDriveOnlyZero = 0x9E,
+    _EnableDriveOnlyZero = 0x9E,
 }
 
 /// Modes for clocking data out of the FTDI device.
@@ -57,8 +56,11 @@ enum MpsseCmd {
 /// This is an argument to the [`clock_bytes_out`] method.
 ///
 /// [`clock_bytes_out`]: MpsseCmdBuilder::clock_bytes_out
+///
+/// TDI(AD1) can only can output on second edge.
+///
+/// TDO(AD2) can only can sample on first edge.
 #[repr(u8)]
-#[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
 pub enum ClockBytesOut {
     /// Positive clock edge MSB first.
@@ -68,7 +70,7 @@ pub enum ClockBytesOut {
     /// The data will change to the next bit on the rising edge of the CLK pin.
     ///
     /// **Use only if clk is set to '1'**
-    MsbPos = 0x10,
+    Tck1Msb = 0x10,
     /// Negative clock edge MSB first.
     ///
     /// The data is sent MSB first.
@@ -76,7 +78,7 @@ pub enum ClockBytesOut {
     /// The data will change to the next bit on the falling edge of the CLK pin.
     ///
     /// **Use only if clk is set to '0'**
-    MsbNeg = 0x11,
+    Tck0Msb = 0x11,
     /// Positive clock edge LSB first.
     ///
     /// The first bit in will be the LSB of the first byte and so on.
@@ -84,7 +86,7 @@ pub enum ClockBytesOut {
     /// The data will change to the next bit on the rising edge of the CLK pin.
     ///
     /// **Use only if clk is set to '1'**
-    LsbPos = 0x18,
+    Tck1Lsb = 0x18,
     /// Negative clock edge LSB first.
     ///
     /// The first bit in will be the LSB of the first byte and so on.
@@ -92,7 +94,7 @@ pub enum ClockBytesOut {
     /// The data will change to the next bit on the falling edge of the CLK pin.
     ///
     /// **Use only if clk is set to '0'**
-    LsbNeg = 0x19,
+    Tck0Lsb = 0x19,
 }
 
 /// Modes for clocking bits out of the FTDI device.
@@ -100,8 +102,11 @@ pub enum ClockBytesOut {
 /// This is an argument to the [`clock_bits_out`] method.
 ///
 /// [`clock_bits_out`]: MpsseCmdBuilder::clock_bits_out
+///
+/// TDI(AD1) can only can output on second edge.
+///
+/// TDO(AD2) can only can sample on first edge.
 #[repr(u8)]
-#[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
 pub enum ClockBitsOut {
     /// Positive clock edge MSB first.
@@ -111,7 +116,7 @@ pub enum ClockBitsOut {
     /// The data will change to the next bit on the rising edge of the CLK pin.
     ///
     /// **Use only if clk is set to '1'**
-    MsbPos = 0x12,
+    _Tck1Msb = 0x12,
     /// Negative clock edge MSB first.
     ///
     /// The data is sent MSB first (bit 7 first).
@@ -119,7 +124,7 @@ pub enum ClockBitsOut {
     /// The data will change to the next bit on the falling edge of the CLK pin.=
     ///
     /// **Use only if clk is set to '0'**
-    MsbNeg = 0x13,
+    Tck0Msb = 0x13,
     /// Positive clock edge LSB first (bit 0 first).
     ///
     /// The first bit in will be the LSB of the first byte and so on.
@@ -127,7 +132,7 @@ pub enum ClockBitsOut {
     /// The data will change to the next bit on the rising edge of the CLK pin.
     ///
     /// **Use only if clk is set to '1'**
-    LsbPos = 0x1A,
+    Tck1Lsb = 0x1A,
     /// Negative clock edge LSB first (bit 0 first).
     ///
     /// The first bit in will be the LSB of the first byte and so on.
@@ -135,7 +140,7 @@ pub enum ClockBitsOut {
     /// The data will change to the next bit on the falling edge of the CLK pin.
     ///
     /// **Use only if clk is set to '0'**
-    LsbNeg = 0x1B,
+    Tck0Lsb = 0x1B,
 }
 
 /// Modes for clocking data into the FTDI device.
@@ -143,8 +148,11 @@ pub enum ClockBitsOut {
 /// This is an argument to the [`clock_bytes_in`] method.
 ///
 /// [`clock_bytes_in`]: MpsseCmdBuilder::clock_bytes_in
+///
+/// TDI(AD1) can only can output on second edge.
+///
+/// TDO(AD2) can only can sample on first edge.
 #[repr(u8)]
-#[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
 pub enum ClockBytesIn {
     /// Positive clock edge MSB first.
@@ -154,7 +162,7 @@ pub enum ClockBytesIn {
     /// The data will be sampled on the rising edge of the CLK pin.
     ///
     /// **Use only if clk is set to '0'**
-    MsbPos = 0x20,
+    Tck0Msb = 0x20,
     /// Negative clock edge MSB first.
     ///
     /// The first bit in will be the MSB of the first byte and so on.
@@ -162,7 +170,7 @@ pub enum ClockBytesIn {
     /// The data will be sampled on the falling edge of the CLK pin.
     ///
     /// **Use only if clk is set to '1'**
-    MsbNeg = 0x24,
+    Tck1Msb = 0x24,
     /// Positive clock edge LSB first.
     ///
     /// The first bit in will be the LSB of the first byte and so on.
@@ -170,7 +178,7 @@ pub enum ClockBytesIn {
     /// The data will be sampled on the rising edge of the CLK pin.
     ///
     /// **Use only if clk is set to '0'**
-    LsbPos = 0x28,
+    Tck0Lsb = 0x28,
     /// Negative clock edge LSB first.
     ///
     /// The first bit in will be the LSB of the first byte and so on.
@@ -178,7 +186,7 @@ pub enum ClockBytesIn {
     /// The data will be sampled on the falling edge of the CLK pin.
     ///
     /// **Use only if clk is set to '1'**
-    LsbNeg = 0x2C,
+    Tck1Lsb = 0x2C,
 }
 
 /// Modes for clocking data bits into the FTDI device.
@@ -186,8 +194,11 @@ pub enum ClockBytesIn {
 /// This is an argument to the [`clock_bits_in`] method.
 ///
 /// [`clock_bits_in`]: MpsseCmdBuilder::clock_bits_in
+///
+/// TDI(AD1) can only can output on second edge.
+///
+/// TDO(AD2) can only can sample on first edge.
 #[repr(u8)]
-#[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
 pub enum ClockBitsIn {
     /// Positive clock edge MSB first.
@@ -200,7 +211,7 @@ pub enum ClockBitsIn {
     /// The data will be sampled on the rising edge of the CLK pin.
     ///
     /// **Use only if clk is set to '0'**
-    MsbPos = 0x22,
+    Tck0Msb = 0x22,
     /// Negative clock edge MSB first.
     ///
     /// The data will be shifted up so that the first bit in may not be in bit 7
@@ -211,7 +222,7 @@ pub enum ClockBitsIn {
     /// The data will be sampled on the falling edge of the CLK pin.
     ///
     /// **Use only if clk is set to '1'**
-    MsbNeg = 0x26,
+    _Tck1Msb = 0x26,
     /// Positive clock edge LSB first.
     ///
     /// The data will be shifted down so that the first bit in may not be in bit
@@ -222,7 +233,7 @@ pub enum ClockBitsIn {
     /// The data will be sampled on the rising edge of the CLK pin.
     ///
     /// **Use only if clk is set to '0'**
-    LsbPos = 0x2A,
+    Tck0Lsb = 0x2A,
     /// Negative clock edge LSB first.
     ///
     /// The data will be shifted down so that the first bit in may not be in bit
@@ -233,7 +244,7 @@ pub enum ClockBitsIn {
     /// The data will be sampled on the falling edge of the CLK pin.
     ///
     /// **Use only if clk is set to '1'**
-    LsbNeg = 0x2E,
+    Tck1Lsb = 0x2E,
 }
 
 /// Modes for clocking data in and out of the FTDI device.
@@ -241,27 +252,29 @@ pub enum ClockBitsIn {
 /// This is an argument to the [`clock_bytes`] method.
 ///
 /// [`clock_bytes`]: MpsseCmdBuilder::clock_bytes
+///
+/// TDI(AD1) can only can output on second edge.
+///
+/// TDO(AD2) can only can sample on first edge.
 #[repr(u8)]
-#[allow(dead_code)]
-#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Copy, Clone)]
 pub enum ClockBytes {
     /// MSB first, data in on positive edge, data out on negative edge.
     ///
     /// **Use only if clk is set to '0'**
-    MsbPosIn = 0x31,
+    Tck0Msb = 0x31,
     /// MSB first, data in on negative edge, data out on positive edge.
     ///
     /// **Use only if clk is set to '1'**
-    MsbNegIn = 0x34,
+    Tck1Msb = 0x34,
     /// LSB first, data in on positive edge, data out on negative edge.
     ///
     /// **Use only if clk is set to '0'**
-    LsbPosIn = 0x39,
+    Tck0Lsb = 0x39,
     /// LSB first, data in on negative edge, data out on positive edge.
     ///
     /// **Use only if clk is set to '1'**
-    LsbNegIn = 0x3C,
+    Tck1Lsb = 0x3C,
 }
 
 /// Modes for clocking data bits in and out of the FTDI device.
@@ -269,27 +282,29 @@ pub enum ClockBytes {
 /// This is an argument to the [`clock_bits`] method.
 ///
 /// [`clock_bits`]: MpsseCmdBuilder::clock_bits
+///
+/// TDI(AD1) can only can output on second edge.
+///
+/// TDO(AD2) can only can sample on first edge.
 #[repr(u8)]
-#[allow(dead_code)]
-#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Copy, Clone)]
 pub enum ClockBits {
     /// MSB first, data in on positive edge, data out on negative edge.
     ///
     /// **Use only if clk is set to '0'**
-    MsbPosIn = 0x33,
+    _Tck0Msb = 0x33,
     /// MSB first, data in on negative edge, data out on positive edge.
     ///
     /// **Use only if clk is set to '1'**
-    MsbNegIn = 0x36,
+    _Tck1Msb = 0x36,
     /// LSB first, data in on positive edge, data out on negative edge.
     ///
     /// **Use only if clk is set to '0'**
-    LsbPosIn = 0x3B,
+    Tck0Lsb = 0x3B,
     /// LSB first, data in on negative edge, data out on positive edge.
     ///
     /// **Use only if clk is set to '1'**
-    LsbNegIn = 0x3E,
+    _Tck1Lsb = 0x3E,
 }
 
 /// Modes for clocking bits out on TMS for JTAG mode.
@@ -297,18 +312,21 @@ pub enum ClockBits {
 /// This is an argument to the [`clock_tms_out`] method.
 ///
 /// [`clock_tms_out`]: MpsseCmdBuilder::clock_tms_out
+///
+/// TMS(AD3) can only can output on second edge.
 #[repr(u8)]
-#[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
 pub enum ClockTMSOut {
     /// LSB first, TMS out on positive edge
     ///
     /// **Use only if clk is set to '1'**
-    PosEdge = 0x4A,
+    ///
+    /// No use because jtag sample on positive edge
+    _Tck1 = 0x4A,
     /// LSB first, TMS out on negative edge
     ///  
     /// **Use only if clk is set to '0'**
-    NegEdge = 0x4B,
+    Tck0 = 0x4B,
 }
 
 /// Modes for clocking bits out on TMS for JTAG mode while reading TDO.
@@ -316,26 +334,33 @@ pub enum ClockTMSOut {
 /// This is an argument to the [`clock_tms`] method.
 ///
 /// [`clock_tms`]: MpsseCmdBuilder::clock_tms
+///
+/// TMS(AD3) can only can output on second edge.
 #[repr(u8)]
-#[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
 pub enum ClockTMS {
     /// LSB first, TMS out on positive edge, TDO in on positive edge.
     ///
     /// **Use only if clk is set to '1'**
-    PosTMSPosTDO = 0x6A,
-    /// LSB first, TMS out on positive edge, TDO in on negative edge.
     ///
-    /// **Use only if clk is set to '1'**
-    PosTMSNegTDO = 0x6E,
+    /// No use because jtag tck need init to 0
+    _Tck1PosTDO = 0x6A,
     /// LSB first, TMS out on negative edge, TDO in on positive edge.
     ///
     /// **Use only if clk is set to '0'**
-    NegTMSPosTDO = 0x6B,
+    Tck0PosTDO = 0x6B,
+    /// LSB first, TMS out on positive edge, TDO in on negative edge.
+    ///
+    /// **Use only if clk is set to '1'**
+    ///
+    /// No use because jtag tdo sample on positive edge
+    _Tck1NegTDO = 0x6E,
     /// LSB first, TMS out on negative edge, TDO in on negative edge.
     ///
     /// **Use only if clk is set to '0'**
-    NegTMSNegTDO = 0x6F,
+    ///
+    /// No use because jtag tdo sample on positive edge
+    _Tck0NegTDO = 0x6F,
 }
 
 /// FTDI Multi-Protocol Synchronous Serial Engine (MPSSE) command builder.
@@ -361,7 +386,6 @@ pub struct MpsseCmdBuilder {
     cmd: Vec<u8>,
     read_len: usize,
 }
-#[allow(unused)]
 impl MpsseCmdBuilder {
     /// Create a new command builder.
     pub fn new() -> MpsseCmdBuilder {
@@ -521,8 +545,8 @@ impl MpsseCmdBuilder {
     /// // Assume a "chip ready" signal is connected to GPIOL1. This signal is pulled high
     /// // shortly after AD3 (chip select) is pulled low. Data will not be clocked out until
     /// // the chip is ready.
-    pub fn wait_on_io_high(&mut self) -> &mut Self {
-        self.cmd.push(MpsseCmd::WaitOnIOHigh as u8);
+    pub fn _wait_on_io_high(&mut self) -> &mut Self {
+        self.cmd.push(MpsseCmd::_WaitOnIOHigh as u8);
         self
     }
 
@@ -532,8 +556,8 @@ impl MpsseCmdBuilder {
     /// // Assume a "chip ready" signal is connected to GPIOL1. This signal is pulled low
     /// // shortly after AD3 (chip select) is pulled low. Data will not be clocked out until
     /// // the chip is ready.
-    pub fn wait_on_io_low(&mut self) -> &mut Self {
-        self.cmd.push(MpsseCmd::WaitOnIOLow as u8);
+    pub fn _wait_on_io_low(&mut self) -> &mut Self {
+        self.cmd.push(MpsseCmd::_WaitOnIOLow as u8);
         self
     }
 

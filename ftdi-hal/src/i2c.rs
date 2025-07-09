@@ -9,8 +9,8 @@ const SCL: u8 = 1 << 0;
 /// SDA bitmask
 const SDA: u8 = 1 << 1;
 
-const BITS_IN: ClockBitsIn = ClockBitsIn::MsbPos;
-const BITS_OUT: ClockBitsOut = ClockBitsOut::MsbNeg;
+const BITS_IN: ClockBitsIn = ClockBitsIn::Tck0Msb;
+const BITS_OUT: ClockBitsOut = ClockBitsOut::Tck0Msb;
 
 /// FTDI I2C interface.
 pub struct I2c {

@@ -27,21 +27,21 @@ impl DerefMut for SwdCmdBuilder {
     }
 }
 impl SwdCmdBuilder {
-    const BITS_IN: ClockBitsIn = ClockBitsIn::LsbNeg;
-    const BITS_OUT: ClockBitsOut = ClockBitsOut::LsbPos;
-    const BYTES_IN: ClockBytesIn = ClockBytesIn::LsbNeg;
-    const BYTES_OUT: ClockBytesOut = ClockBytesOut::LsbPos;
+    const BITS_IN: ClockBitsIn = ClockBitsIn::Tck1Lsb;
+    const BITS_OUT: ClockBitsOut = ClockBitsOut::Tck1Lsb;
+    const BYTES_IN: ClockBytesIn = ClockBytesIn::Tck1Lsb;
+    const BYTES_OUT: ClockBytesOut = ClockBytesOut::Tck1Lsb;
     fn new() -> Self {
         SwdCmdBuilder(MpsseCmdBuilder::new())
     }
     fn swd_enable(&mut self, lock: &MutexGuard<FtMpsse>) -> &mut Self {
         const ONES: [u8; 8] = [0xff; 8]; // 64 ones
-        const SEQUENCE: [u8; 2] = [0x79, 0xe7]; // Activation pattern
+        const SEQUENCE: [u8; 2] = u16::to_be_bytes(0x79e7); // Activation pattern (MSB first)
 
         self.swd_out(lock)
-            .clock_bytes_out(ClockBytesOut::LsbPos, &ONES) // >50 ones (LSB first)
-            .clock_bytes_out(ClockBytesOut::MsbPos, &SEQUENCE) // Activation pattern (MSB first)
-            .clock_bytes_out(ClockBytesOut::LsbPos, &ONES) // >50 ones (LSB first)
+            .clock_bytes_out(ClockBytesOut::Tck1Lsb, &ONES) // >50 ones (LSB first)
+            .clock_bytes_out(ClockBytesOut::Tck1Msb, &SEQUENCE) // Activation pattern (MSB first)
+            .clock_bytes_out(ClockBytesOut::Tck1Lsb, &ONES) // >50 ones (LSB first)
             .send_immediate();
         self
     }

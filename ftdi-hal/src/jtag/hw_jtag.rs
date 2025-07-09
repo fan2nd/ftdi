@@ -6,17 +6,20 @@ use crate::mpsse::{
 use crate::{FtMpsse, OutputPin, Pin, PinUse};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
-
-const BYTES_WRITE: ClockBytesOut = ClockBytesOut::LsbNeg;
-const BYTES_READ: ClockBytesIn = ClockBytesIn::LsbPos;
-const BYTES_WRITE_READ: ClockBytes = ClockBytes::LsbPosIn;
-
-const BITS_WRITE: ClockBitsOut = ClockBitsOut::LsbNeg;
-const BITS_READ: ClockBitsIn = ClockBitsIn::LsbPos;
-const BITS_WRITE_READ: ClockBits = ClockBits::LsbPosIn;
-
-const TMS_WRITE: ClockTMSOut = ClockTMSOut::NegEdge;
-const TMS_WRITE_READ: ClockTMS = ClockTMS::NegTMSPosTDO;
+// TCK(AD0) must be init with value 0.
+// TDI(AD1) can only can output on second edge.
+// TDO(AD2) can only can sample on first edge.
+// according to AN108-2.2.
+// https://ftdichip.com/Support/Documents/AppNotes/AN_108_Command_Processor_for_MPSSE_and_MCU_Host_Bus_Emulation_Modes.pdf
+const BYTES_WRITE: ClockBytesOut = ClockBytesOut::Tck0Lsb;
+const BYTES_READ: ClockBytesIn = ClockBytesIn::Tck0Lsb;
+const BYTES_WRITE_READ: ClockBytes = ClockBytes::Tck0Lsb;
+const BITS_WRITE: ClockBitsOut = ClockBitsOut::Tck0Lsb;
+const BITS_READ: ClockBitsIn = ClockBitsIn::Tck0Lsb;
+const BITS_WRITE_READ: ClockBits = ClockBits::Tck0Lsb;
+// TMS Commond not
+const TMS_WRITE: ClockTMSOut = ClockTMSOut::Tck0;
+const TMS_WRITE_READ: ClockTMS = ClockTMS::Tck0PosTDO;
 
 pub struct JtagCmdBuilder(MpsseCmdBuilder);
 impl JtagCmdBuilder {
@@ -144,7 +147,10 @@ impl Jtag {
             lock.alloc_pin(Pin::Lower(3), PinUse::Jtag);
             // set TCK(AD0) TDI(AD1) TMS(AD3) as output pins
             lock.lower.direction |= 0x0b;
-            // TCK(AD0) must be init with value 0 according to AN108-2.2.
+            // TCK(AD0) must be init with value 0.
+            // TDI(AD1) can only can output on second edge.
+            // TDO(AD2) can only can sample on first edge.
+            // according to AN108-2.2.
             // https://ftdichip.com/Support/Documents/AppNotes/AN_108_Command_Processor_for_MPSSE_and_MCU_Host_Bus_Emulation_Modes.pdf
             let mut cmd = MpsseCmdBuilder::new();
             cmd.set_gpio_lower(lock.lower.value, lock.lower.direction)

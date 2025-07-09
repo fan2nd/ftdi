@@ -4,6 +4,11 @@ use crate::{FtMpsse, Pin, PinUse};
 use eh1::spi::{Error, ErrorKind, ErrorType, SpiBus};
 use std::sync::{Arc, Mutex};
 
+// Spi only support mode0 and mode2
+// TDI(AD1) can only can output on second edge.
+// TDO(AD2) can only can sample on first edge.
+// according to AN108-2.2.
+// https://ftdichip.com/Support/Documents/AppNotes/AN_108_Command_Processor_for_MPSSE_and_MCU_Host_Bus_Emulation_Modes.pdf
 #[derive(Debug, Clone, Copy)]
 pub enum SpiMode {
     MsbMode0,
@@ -18,24 +23,24 @@ struct SpiCommond {
     write: ClockBytesOut,
 }
 const MSB_MODE0: SpiCommond = SpiCommond {
-    write_read: ClockBytes::MsbPosIn,
-    read: ClockBytesIn::MsbPos,
-    write: ClockBytesOut::MsbNeg,
+    write_read: ClockBytes::Tck0Msb,
+    read: ClockBytesIn::Tck0Msb,
+    write: ClockBytesOut::Tck0Msb,
 };
 const LSB_MODE0: SpiCommond = SpiCommond {
-    write_read: ClockBytes::LsbPosIn,
-    read: ClockBytesIn::LsbPos,
-    write: ClockBytesOut::LsbNeg,
+    write_read: ClockBytes::Tck0Lsb,
+    read: ClockBytesIn::Tck0Lsb,
+    write: ClockBytesOut::Tck0Lsb,
 };
 const MSB_MODE2: SpiCommond = SpiCommond {
-    write_read: ClockBytes::MsbNegIn,
-    read: ClockBytesIn::MsbNeg,
-    write: ClockBytesOut::MsbPos,
+    write_read: ClockBytes::Tck1Msb,
+    read: ClockBytesIn::Tck1Msb,
+    write: ClockBytesOut::Tck1Msb,
 };
 const LSB_MODE2: SpiCommond = SpiCommond {
-    write_read: ClockBytes::LsbNegIn,
-    read: ClockBytesIn::LsbNeg,
-    write: ClockBytesOut::LsbPos,
+    write_read: ClockBytes::Tck1Lsb,
+    read: ClockBytesIn::Tck1Lsb,
+    write: ClockBytesOut::Tck1Lsb,
 };
 impl From<SpiMode> for SpiCommond {
     fn from(value: SpiMode) -> Self {
