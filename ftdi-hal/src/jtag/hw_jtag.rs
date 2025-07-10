@@ -1,9 +1,9 @@
 use crate::ftdaye::FtdiError;
-use crate::mpsse::{
+use crate::mpsse_cmd::{
     ClockBits, ClockBitsIn, ClockBitsOut, ClockBytes, ClockBytesIn, ClockBytesOut, ClockTMS,
     ClockTMSOut, MpsseCmdBuilder,
 };
-use crate::{FtMpsse, OutputPin, Pin, PinUse};
+use crate::{FtdiMpsse, OutputPin, Pin, PinUse};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 // TCK(AD0) must be init with value 0.
@@ -122,7 +122,7 @@ impl DerefMut for JtagCmdBuilder {
 }
 pub struct Jtag {
     /// Parent FTDI device.
-    mtx: Arc<Mutex<FtMpsse>>,
+    mtx: Arc<Mutex<FtdiMpsse>>,
     is_ilde: bool,
     adaptive_clocking: bool,
     direction: Option<[OutputPin; 4]>,
@@ -130,7 +130,7 @@ pub struct Jtag {
 impl Drop for Jtag {
     fn drop(&mut self) {
         self.adaptive_clock(false).unwrap();
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let mut lock = self.mtx.lock().unwrap();
         lock.free_pin(Pin::Lower(0));
         lock.free_pin(Pin::Lower(1));
         lock.free_pin(Pin::Lower(2));
@@ -138,9 +138,9 @@ impl Drop for Jtag {
     }
 }
 impl Jtag {
-    pub fn new(mtx: Arc<Mutex<FtMpsse>>) -> Result<Self, FtdiError> {
+    pub fn new(mtx: Arc<Mutex<FtdiMpsse>>) -> Result<Self, FtdiError> {
         {
-            let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
+            let mut lock = mtx.lock().unwrap();
             lock.alloc_pin(Pin::Lower(0), PinUse::Jtag);
             lock.alloc_pin(Pin::Lower(1), PinUse::Jtag);
             lock.alloc_pin(Pin::Lower(2), PinUse::Jtag);
@@ -154,8 +154,7 @@ impl Jtag {
             // https://ftdichip.com/Support/Documents/AppNotes/AN_108_Command_Processor_for_MPSSE_and_MCU_Host_Bus_Emulation_Modes.pdf
             let mut cmd = MpsseCmdBuilder::new();
             cmd.set_gpio_lower(lock.lower.value, lock.lower.direction)
-                .enable_3phase_data_clocking(false)
-                .send_immediate();
+                .enable_3phase_data_clocking(false);
             lock.write_read(cmd.as_slice(), &mut [])?;
         }
         Ok(Self {
@@ -169,7 +168,7 @@ impl Jtag {
         if self.adaptive_clocking == state {
             return Ok(());
         }
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let mut lock = self.mtx.lock().unwrap();
         let mut cmd = MpsseCmdBuilder::new();
         if state {
             log::info!("Use {:?} as RTCK.", Pin::Lower(7));
@@ -203,8 +202,8 @@ impl Jtag {
     }
     pub fn goto_idle(&mut self) -> Result<(), FtdiError> {
         let mut cmd = JtagCmdBuilder::new();
-        cmd.jtag_any2idle().send_immediate();
-        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        cmd.jtag_any2idle();
+        let lock = self.mtx.lock().unwrap();
         lock.write_read(cmd.as_slice(), &mut [])?;
         self.is_ilde = true;
         Ok(())
@@ -212,8 +211,8 @@ impl Jtag {
     pub fn scan_with(&mut self, tdi: bool) -> Result<Vec<Option<u32>>, FtdiError> {
         const ID_LEN: usize = 32;
         let mut cmd = JtagCmdBuilder::new();
-        cmd.jtag_any2idle().jtag_idle2dr().send_immediate();
-        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        cmd.jtag_any2idle().jtag_idle2dr();
+        let lock = self.mtx.lock().unwrap();
         lock.write_read(cmd.as_slice(), &mut [])?;
         let tdi = if tdi { vec![0xff; 4] } else { vec![0; 4] };
         // 移入0并读取TDO，持续直到检测到连续32个0
@@ -224,7 +223,7 @@ impl Jtag {
 
         'outer: loop {
             let mut cmd = MpsseCmdBuilder::new();
-            cmd.clock_bytes(BYTES_WRITE_READ, &tdi).send_immediate();
+            cmd.clock_bytes(BYTES_WRITE_READ, &tdi);
             let read_buf = &mut [0; 4];
             lock.write_read(cmd.as_slice(), read_buf)?;
             let tdos: Vec<_> = read_buf
@@ -272,9 +271,8 @@ impl Jtag {
             .jtag_ir_exit2dr()
             .jtag_shift_write(dr, drlen)
             .jtag_dr_exit2idle()
-            .jtag_idle_cycle()
-            .send_immediate();
-        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+            .jtag_idle_cycle();
+        let lock = self.mtx.lock().unwrap();
         lock.write_read(cmd.as_slice(), &mut [])?;
         Ok(())
     }
@@ -289,9 +287,8 @@ impl Jtag {
             .jtag_ir_exit2dr()
             .jtag_shift_read(drlen)
             .jtag_dr_exit2idle()
-            .jtag_idle_cycle()
-            .send_immediate();
-        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+            .jtag_idle_cycle();
+        let lock = self.mtx.lock().unwrap();
         let mut read_buf = vec![0; cmd.read_len()];
         lock.write_read(cmd.as_slice(), &mut read_buf)?;
         let len = JtagCmdBuilder::jtag_parse_single_shift(&mut read_buf, drlen);
@@ -318,9 +315,8 @@ impl Jtag {
             .jtag_ir_exit2dr()
             .jtag_shift(dr, drlen)
             .jtag_dr_exit2idle()
-            .jtag_idle_cycle()
-            .send_immediate();
-        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+            .jtag_idle_cycle();
+        let lock = self.mtx.lock().unwrap();
         let mut read_buf = vec![0; cmd.read_len()];
         lock.write_read(cmd.as_slice(), &mut read_buf)?;
         let len = JtagCmdBuilder::jtag_parse_single_shift(&mut read_buf, drlen);

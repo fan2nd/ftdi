@@ -4,9 +4,9 @@ use std::{
 };
 
 use crate::{
-    FtMpsse, Pin, PinUse,
+    FtdiMpsse, Pin, PinUse,
     ftdaye::FtdiError,
-    mpsse::{ClockBitsIn, ClockBitsOut, ClockBytesIn, ClockBytesOut, MpsseCmdBuilder},
+    mpsse_cmd::{ClockBitsIn, ClockBitsOut, ClockBytesIn, ClockBytesOut, MpsseCmdBuilder},
 };
 
 /// SCK bitmask
@@ -34,7 +34,7 @@ impl SwdCmdBuilder {
     fn new() -> Self {
         SwdCmdBuilder(MpsseCmdBuilder::new())
     }
-    fn swd_enable(&mut self, lock: &MutexGuard<FtMpsse>) -> &mut Self {
+    fn swd_enable(&mut self, lock: &MutexGuard<FtdiMpsse>) -> &mut Self {
         const ONES: [u8; 8] = [0xff; 8]; // 64 ones
         const SEQUENCE: [u8; 2] = u16::to_be_bytes(0x79e7); // Activation pattern (MSB first)
 
@@ -42,14 +42,14 @@ impl SwdCmdBuilder {
             .clock_bytes_out(ClockBytesOut::Tck1Lsb, &ONES) // >50 ones (LSB first)
             .clock_bytes_out(ClockBytesOut::Tck1Msb, &SEQUENCE) // Activation pattern (MSB first)
             .clock_bytes_out(ClockBytesOut::Tck1Lsb, &ONES) // >50 ones (LSB first)
-            .send_immediate();
+            ;
         self
     }
-    fn swd_out(&mut self, lock: &MutexGuard<FtMpsse>) -> &mut Self {
+    fn swd_out(&mut self, lock: &MutexGuard<FtdiMpsse>) -> &mut Self {
         self.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK | DIO);
         self
     }
-    fn swd_in(&mut self, lock: &MutexGuard<FtMpsse>) -> &mut Self {
+    fn swd_in(&mut self, lock: &MutexGuard<FtdiMpsse>) -> &mut Self {
         self.set_gpio_lower(lock.lower.value, lock.lower.direction | SCK);
         self
     }
@@ -101,11 +101,11 @@ impl From<SwdAddr> for u8 {
 }
 pub struct Swd {
     /// Parent FTDI device.
-    mtx: Arc<Mutex<FtMpsse>>,
+    mtx: Arc<Mutex<FtdiMpsse>>,
 }
 impl Drop for Swd {
     fn drop(&mut self) {
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let mut lock = self.mtx.lock().unwrap();
         lock.free_pin(Pin::Lower(0));
         lock.free_pin(Pin::Lower(1));
         lock.free_pin(Pin::Lower(2));
@@ -122,10 +122,10 @@ impl Swd {
     ///   Pin0 (SCK)        - Output
     ///   Pin1 (DIO_OUTPUT) - Output
     ///   Pin2 (DIO_INPUT)  - Input
-    pub fn new(mtx: Arc<Mutex<FtMpsse>>) -> Result<Self, FtdiError> {
+    pub fn new(mtx: Arc<Mutex<FtdiMpsse>>) -> Result<Self, FtdiError> {
         {
             log::warn!("Swd module has not been tested yet!");
-            let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
+            let mut lock = mtx.lock().unwrap();
             lock.alloc_pin(Pin::Lower(0), PinUse::Swd);
             lock.alloc_pin(Pin::Lower(1), PinUse::Swd);
             lock.alloc_pin(Pin::Lower(2), PinUse::Swd);
@@ -135,8 +135,7 @@ impl Swd {
             lock.lower.value &= !0x07;
             // set GPIO pins to new state
             let mut cmd = MpsseCmdBuilder::new();
-            cmd.set_gpio_lower(lock.lower.value, lock.lower.direction)
-                .send_immediate();
+            cmd.set_gpio_lower(lock.lower.value, lock.lower.direction);
             lock.write_read(cmd.as_slice(), &mut [])?;
         }
         Ok(Self { mtx })
@@ -181,8 +180,7 @@ impl Swd {
             .swd_send_request(request)
             .swd_in(&lock)
             .swd_trn()
-            .swd_read_response()
-            .send_immediate();
+            .swd_read_response();
         lock.write_read(cmd.as_slice(), response)?;
 
         // Read ACK (3 bits)
@@ -190,7 +188,7 @@ impl Swd {
         let ack = response[0] >> 5;
         if ack != Self::REPONSE_SUCCESS {
             let mut cmd = SwdCmdBuilder::new();
-            cmd.swd_trn().send_immediate();
+            cmd.swd_trn();
             lock.write_read(cmd.as_slice(), &mut [])?;
             match ack {
                 Self::REPONSE_WAIT => return Err(FtdiError::Other("Swd ack wait".into())),
@@ -202,7 +200,7 @@ impl Swd {
         // Read data (32 bits) + parity (1 bit) = 33 bits
         let mut data = [0u8; 5]; // 33 bits = 5 bytes
         let mut cmd = SwdCmdBuilder::new();
-        cmd.swd_read_data().swd_trn().send_immediate();
+        cmd.swd_read_data().swd_trn();
         lock.write_read(cmd.as_slice(), &mut data)?;
 
         // Parse the data (LSB first)
@@ -226,8 +224,7 @@ impl Swd {
             .swd_in(&lock)
             .swd_trn()
             .swd_read_response()
-            .swd_trn()
-            .send_immediate();
+            .swd_trn();
         lock.write_read(cmd.as_slice(), response)?;
 
         // Read ACK (3 bits)
@@ -242,7 +239,7 @@ impl Swd {
         }
         // Send data (33 bits)
         let mut cmd = SwdCmdBuilder::new();
-        cmd.swd_out(&lock).swd_write_data(value).send_immediate();
+        cmd.swd_out(&lock).swd_write_data(value);
         lock.write_read(cmd.as_slice(), &mut [])?;
         Ok(())
     }

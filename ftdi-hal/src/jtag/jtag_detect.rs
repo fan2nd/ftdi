@@ -1,15 +1,15 @@
-use crate::{FtMpsse, OutputPin, Pin, PinUse, ftdaye::FtdiError, mpsse::MpsseCmdBuilder};
+use crate::{FtdiMpsse, OutputPin, Pin, PinUse, ftdaye::FtdiError, mpsse_cmd::MpsseCmdBuilder};
 use std::sync::{Arc, Mutex};
 
 pub struct JtagDetectTdo {
-    mtx: Arc<Mutex<FtMpsse>>,
+    mtx: Arc<Mutex<FtdiMpsse>>,
     tck: usize,
     tms: usize,
     has_direction: bool,
 }
 impl Drop for JtagDetectTdo {
     fn drop(&mut self) {
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let mut lock = self.mtx.lock().unwrap();
         for i in 0..8 {
             lock.free_pin(Pin::Lower(i));
             if self.has_direction {
@@ -20,10 +20,14 @@ impl Drop for JtagDetectTdo {
 }
 impl JtagDetectTdo {
     /// Will use all lower pins
-    pub fn new(mtx: Arc<Mutex<FtMpsse>>, tck: usize, tms: usize) -> Result<Self, FtdiError> {
-        let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
+    pub fn new(mtx: Arc<Mutex<FtdiMpsse>>, tck: usize, tms: usize) -> Result<Self, FtdiError> {
+        log::error!("Not test. This might only run in Bitmod mode.");
+        let mut lock = mtx.lock().unwrap();
         for i in 0..8 {
-            lock.alloc_pin(Pin::Lower(i), PinUse::JtagDetect);
+            if i == tck || i == tms {
+                lock.alloc_pin(Pin::Lower(i), PinUse::Output);
+            }
+            lock.alloc_pin(Pin::Lower(i), PinUse::Input);
         }
         // all pins default set to low
         Ok(Self {
@@ -36,9 +40,9 @@ impl JtagDetectTdo {
     /// Will use all upper pins
     pub fn with_direction(&mut self) -> Result<(), FtdiError> {
         self.has_direction = true;
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let mut lock = self.mtx.lock().unwrap();
         for i in 0..8 {
-            lock.alloc_pin(Pin::Upper(i), PinUse::JtagDetect);
+            lock.alloc_pin(Pin::Upper(i), PinUse::Output);
         }
         let mut cmd = MpsseCmdBuilder::new();
         cmd.set_gpio_upper(1 << self.tck | 1 << self.tms, 0xff);
@@ -69,7 +73,7 @@ impl JtagDetectTdo {
             .set_gpio_lower(1 << self.tck, direction) // TCK to high
             .set_gpio_lower(0, direction) // TCK to low
             .set_gpio_lower(1 << self.tck, direction); // TCK to high
-        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().unwrap();
         lock.write_read(cmd.as_slice(), &mut [])?;
         Ok(())
     }
@@ -83,7 +87,7 @@ impl JtagDetectTdo {
                 .set_gpio_lower(1 << self.tck, direction) // TCK to high
                 .gpio_lower();
         }
-        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().unwrap();
         lock.write_read(cmd.as_slice(), &mut read_buf)?;
         Ok(read_buf)
     }
@@ -137,7 +141,7 @@ impl JtagDetectTdo {
 }
 
 pub struct JtagDetectTdi {
-    mtx: Arc<Mutex<FtMpsse>>,
+    mtx: Arc<Mutex<FtdiMpsse>>,
     tck: usize,
     tdi: usize,
     tdo: usize,
@@ -146,7 +150,7 @@ pub struct JtagDetectTdi {
 }
 impl Drop for JtagDetectTdi {
     fn drop(&mut self) {
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let mut lock = self.mtx.lock().unwrap();
         lock.free_pin(Pin::Lower(self.tck));
         lock.free_pin(Pin::Lower(self.tdi));
         lock.free_pin(Pin::Lower(self.tdo));
@@ -156,17 +160,18 @@ impl Drop for JtagDetectTdi {
 impl JtagDetectTdi {
     /// Only can use lower pins
     pub fn new(
-        mtx: Arc<Mutex<FtMpsse>>,
+        mtx: Arc<Mutex<FtdiMpsse>>,
         tck: usize,
         tdi: usize,
         tdo: usize,
         tms: usize,
     ) -> Result<Self, FtdiError> {
-        let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
-        lock.alloc_pin(Pin::Lower(tck), PinUse::JtagDetect);
-        lock.alloc_pin(Pin::Lower(tdi), PinUse::JtagDetect);
-        lock.alloc_pin(Pin::Lower(tdo), PinUse::JtagDetect);
-        lock.alloc_pin(Pin::Lower(tms), PinUse::JtagDetect);
+        log::error!("Not test. This might only run in Bitmod mode.");
+        let mut lock = mtx.lock().unwrap();
+        lock.alloc_pin(Pin::Lower(tck), PinUse::Output);
+        lock.alloc_pin(Pin::Lower(tdi), PinUse::Output);
+        lock.alloc_pin(Pin::Lower(tdo), PinUse::Input);
+        lock.alloc_pin(Pin::Lower(tms), PinUse::Output);
         // all pins default set to low
         lock.lower.direction |= 1 << tck | 1 << tdi | 1 << tms; // all pins default input, set tck/tdi/tms to output
         Ok(Self {
@@ -202,7 +207,7 @@ impl JtagDetectTdi {
     fn clock_tck(&self, tms_val: u8, tdi_val: u8) -> Result<bool, FtdiError> {
         assert!(tms_val == 0 || tms_val == 1);
         assert!(tdi_val == 0 || tdi_val == 1);
-        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().unwrap();
         let mut cmd = MpsseCmdBuilder::new();
         cmd.set_gpio_lower(
             lock.lower.value | tdi_val << self.tdi | tms_val << self.tms,
@@ -216,8 +221,7 @@ impl JtagDetectTdi {
         .set_gpio_lower(
             lock.lower.value | tdi_val << self.tdi | tms_val << self.tms,
             lock.lower.direction,
-        )
-        .send_immediate();
+        );
         let read = &mut [0];
         lock.write_read(cmd.as_slice(), read)?;
         Ok(read[0] & (1 << self.tdo) != 0)
@@ -227,7 +231,7 @@ impl JtagDetectTdi {
     fn clock_tcks(&self, tms_val: u8, tdi_val: u8, count: usize) -> Result<Vec<bool>, FtdiError> {
         assert!(tms_val == 0 || tms_val == 1);
         assert!(tdi_val == 0 || tdi_val == 1);
-        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().unwrap();
         let mut cmd = MpsseCmdBuilder::new();
         cmd.set_gpio_lower(
             lock.lower.value | tdi_val << self.tdi | tms_val << self.tms,
@@ -244,7 +248,6 @@ impl JtagDetectTdi {
                 lock.lower.direction,
             ); // set tck to low
         }
-        cmd.send_immediate();
         let mut read_buf = vec![0; count];
         lock.write_read(cmd.as_slice(), &mut read_buf)?;
         Ok(read_buf

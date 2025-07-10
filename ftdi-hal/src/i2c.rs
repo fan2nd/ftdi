@@ -1,6 +1,6 @@
 use crate::ftdaye::FtdiError;
-use crate::mpsse::{ClockBitsIn, ClockBitsOut, MpsseCmdBuilder};
-use crate::{FtMpsse, Pin, PinUse};
+use crate::mpsse_cmd::{ClockBitsIn, ClockBitsOut, MpsseCmdBuilder};
+use crate::{FtdiMpsse, Pin, PinUse};
 use eh1::i2c::{ErrorKind, NoAcknowledgeSource, Operation, SevenBitAddress};
 use std::sync::{Arc, Mutex};
 
@@ -15,7 +15,7 @@ const BITS_OUT: ClockBitsOut = ClockBitsOut::Tck0Msb;
 /// FTDI I2C interface.
 pub struct I2c {
     /// Parent FTDI device.
-    mtx: Arc<Mutex<FtMpsse>>,
+    mtx: Arc<Mutex<FtdiMpsse>>,
     /// Length of the start, repeated start, and stop conditions.
     ///
     /// The units for these are dimensionless number of MPSSE commands.
@@ -26,8 +26,8 @@ pub struct I2c {
 impl Drop for I2c {
     fn drop(&mut self) {
         let mut cmd = MpsseCmdBuilder::new();
-        cmd.enable_3phase_data_clocking(false).send_immediate();
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        cmd.enable_3phase_data_clocking(false);
+        let mut lock = self.mtx.lock().unwrap();
         lock.write_read(cmd.as_slice(), &mut []).unwrap();
         lock.free_pin(Pin::Lower(0));
         lock.free_pin(Pin::Lower(1));
@@ -36,10 +36,10 @@ impl Drop for I2c {
 }
 
 impl I2c {
-    pub fn new(mtx: Arc<Mutex<FtMpsse>>) -> Result<I2c, FtdiError> {
+    pub fn new(mtx: Arc<Mutex<FtdiMpsse>>) -> Result<I2c, FtdiError> {
         {
             log::warn!("IIC module has not been tested yet!");
-            let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
+            let mut lock = mtx.lock().unwrap();
 
             lock.alloc_pin(Pin::Lower(0), PinUse::I2c);
             lock.alloc_pin(Pin::Lower(1), PinUse::I2c);
@@ -57,8 +57,7 @@ impl I2c {
             // set GPIO pins to new state
             let mut cmd = MpsseCmdBuilder::new();
             cmd.set_gpio_lower(lock.lower.value, lock.lower.direction)
-                .enable_3phase_data_clocking(true)
-                .send_immediate();
+                .enable_3phase_data_clocking(true);
             lock.write_read(cmd.as_slice(), &mut [])?;
         }
         let this = I2c {
@@ -97,7 +96,7 @@ impl I2c {
     }
 
     pub fn set_frequency(&self, frequency_hz: usize) -> Result<(), FtdiError> {
-        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().unwrap();
         lock.set_frequency(frequency_hz * 3 / 2)?;
         Ok(())
     }
@@ -109,7 +108,7 @@ impl I2c {
     ) -> Result<(), ErrorKind> {
         // lock at the start to prevent GPIO from being modified while we build
         // the MPSSE command
-        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().unwrap();
 
         // ST
         let mut mpsse_cmd = MpsseCmdBuilder::new();
@@ -158,8 +157,7 @@ impl I2c {
                             .clock_bits_out(BITS_OUT, (address << 1) | 1, 8)
                             // SAK
                             .set_gpio_lower(lock.lower.value, SCL | lock.lower.direction)
-                            .clock_bits_in(BITS_IN, 1)
-                            .send_immediate();
+                            .clock_bits_in(BITS_IN, 1);
 
                         let mut ack_buf: [u8; 1] = [0; 1];
                         lock.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
@@ -220,8 +218,7 @@ impl I2c {
                             .clock_bits_out(BITS_OUT, address << 1, 8)
                             // SAK
                             .set_gpio_lower(lock.lower.value, SCL | lock.lower.direction)
-                            .clock_bits_in(BITS_IN, 1)
-                            .send_immediate();
+                            .clock_bits_in(BITS_IN, 1);
 
                         let mut ack_buf: [u8; 1] = [0; 1];
                         lock.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
@@ -238,8 +235,7 @@ impl I2c {
                             .clock_bits_out(BITS_OUT, *byte, 8)
                             // SAK
                             .set_gpio_lower(lock.lower.value, SCL | lock.lower.direction)
-                            .clock_bits_in(BITS_IN, 1)
-                            .send_immediate();
+                            .clock_bits_in(BITS_IN, 1);
 
                         let mut ack_buf: [u8; 1] = [0; 1];
                         lock.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
@@ -269,9 +265,7 @@ impl I2c {
         }
 
         // Idle
-        mpsse_cmd
-            .set_gpio_lower(lock.lower.value, lock.lower.direction)
-            .send_immediate();
+        mpsse_cmd.set_gpio_lower(lock.lower.value, lock.lower.direction);
         lock.write_read(mpsse_cmd.as_slice(), &mut [])?;
 
         Ok(())

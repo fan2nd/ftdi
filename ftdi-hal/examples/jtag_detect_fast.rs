@@ -3,7 +3,7 @@ use std::{
     time::Instant,
 };
 
-use ftdi_hal::{FtMpsse, JtagDetectTdi, JtagDetectTdo, list_all_device};
+use ftdi_hal::{FtdiMpsse, JtagDetectTdi, JtagDetectTdo, list_all_device};
 use itertools::Itertools;
 
 fn main() {
@@ -11,7 +11,7 @@ fn main() {
     let now = Instant::now();
     let devices = list_all_device();
     assert!(!devices.is_empty(), "Not found Ftdi devices");
-    let mpsse = FtMpsse::open(&devices[0].usb_device, devices[0].interface[0], 0).unwrap();
+    let mpsse = FtdiMpsse::open(&devices[0].usb_device, devices[0].interface[0], 0).unwrap();
     let mtx = Arc::new(Mutex::new(mpsse));
     let pins = [0, 1, 2, 3, 4, 5, 6, 7];
     let mut notdi = Vec::new();

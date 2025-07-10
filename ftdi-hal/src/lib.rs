@@ -27,7 +27,7 @@ mod gpio;
 mod i2c;
 mod jtag;
 mod list;
-mod mpsse;
+mod mpsse_cmd;
 mod spi;
 mod swd;
 
@@ -37,25 +37,24 @@ pub use gpio::{InputPin, OutputPin};
 pub use i2c::I2c;
 pub use jtag::{Jtag, JtagDetectTdi, JtagDetectTdo};
 pub use list::list_all_device;
-use mpsse::MpsseCmdBuilder;
+use mpsse_cmd::MpsseCmdBuilder;
 pub use spi::{Spi, SpiMode};
 pub use swd::{Swd, SwdAddr};
 
 /// Pin number
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Pin {
     Lower(usize),
     Upper(usize),
 }
 /// State tracker for each pin on the FTDI chip.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PinUse {
     Output,
     Input,
     I2c,
     Spi,
     Jtag,
-    JtagDetect,
     Swd,
 }
 #[derive(Debug, Default)]
@@ -68,7 +67,7 @@ struct GpioByte {
     pins: [Option<PinUse>; 8],
 }
 
-pub struct FtMpsse {
+pub struct FtdiMpsse {
     /// FTDI device.
     ft: FtdiContext,
     chip_type: ChipType,
@@ -76,7 +75,7 @@ pub struct FtMpsse {
     upper: GpioByte,
 }
 
-impl FtMpsse {
+impl FtdiMpsse {
     pub fn open(
         usb_device: &nusb::DeviceInfo,
         interface: Interface,
@@ -125,8 +124,7 @@ impl FtMpsse {
             .set_gpio_upper(0, 0) // set all pin to input and value 0;
             .enable_loopback(false)
             .enable_3phase_data_clocking(false)
-            .enable_adaptive_clocking(false)
-            .send_immediate();
+            .enable_adaptive_clocking(false);
         context.write_read(cmd.as_slice(), &mut [])?;
 
         Ok(Self {
@@ -183,6 +181,16 @@ impl FtMpsse {
     }
     /// Allocate a pin for a specific use.
     fn alloc_pin(&mut self, pin: Pin, purpose: PinUse) {
+        let forbid_use = [
+            (Pin::Lower(0), PinUse::Input),
+            (Pin::Lower(1), PinUse::Input),
+            (Pin::Lower(2), PinUse::Output),
+            (Pin::Lower(3), PinUse::Input),
+        ];
+        assert!(
+            !forbid_use.contains(&(pin, purpose)),
+            "In mpsse mode {pin:?} can not be use as {purpose:?} according to AN108-2.1."
+        );
         let (byte, idx) = match pin {
             Pin::Lower(idx) => (&mut self.lower, idx),
             Pin::Upper(idx) => {
@@ -213,8 +221,7 @@ impl FtMpsse {
                 self.lower.value &= !(1 << idx); // set value to low
                 self.lower.direction &= !(1 << idx); // set direction to input
                 let mut cmd = MpsseCmdBuilder::new();
-                cmd.set_gpio_lower(self.lower.value, self.lower.direction)
-                    .send_immediate();
+                cmd.set_gpio_lower(self.lower.value, self.lower.direction);
                 self.write_read(cmd.as_slice(), &mut []).unwrap();
             }
             Pin::Upper(idx) => {
@@ -224,8 +231,7 @@ impl FtMpsse {
                 self.upper.value &= !(1 << idx); // set value to low
                 self.upper.direction &= !(1 << idx); // set direction to input
                 let mut cmd = MpsseCmdBuilder::new();
-                cmd.set_gpio_upper(self.upper.value, self.upper.direction)
-                    .send_immediate();
+                cmd.set_gpio_upper(self.upper.value, self.upper.direction);
                 self.write_read(cmd.as_slice(), &mut []).unwrap();
             }
         };

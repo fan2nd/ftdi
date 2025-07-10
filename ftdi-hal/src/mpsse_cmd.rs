@@ -31,9 +31,9 @@ enum MpsseCmd {
     SetClockFrequency = 0x86,
     /// Used by [`send_immediate`][`MpsseCmdBuilder::send_immediate`].
     SendImmediate = 0x87,
-    /// Used by [`wait_on_io_high`][`MpsseCmdBuilder::wait_on_io_high`].
+    /// Used by [`_wait_on_io_high`][`MpsseCmdBuilder::_wait_on_io_high`].
     _WaitOnIOHigh = 0x88,
-    /// Used by [`wait_on_io_low`][`MpsseCmdBuilder::wait_on_io_low`].
+    /// Used by [`_wait_on_io_low`][`MpsseCmdBuilder::_wait_on_io_low`].
     _WaitOnIOLow = 0x89,
     /// Used by [`set_clock`][`MpsseCmdBuilder::set_clock`].
     DisableClockDivide = 0x8A,
@@ -393,8 +393,8 @@ impl MpsseCmdBuilder {
     }
 
     /// Get the MPSSE command as a slice.
-    pub fn as_slice(&self) -> &[u8] {
-        self.cmd.as_slice()
+    pub fn as_slice(&mut self) -> &[u8] {
+        self.send_immediate().cmd.as_slice()
     }
 
     /// Get the response length of current MPSSE command.
@@ -534,7 +534,7 @@ impl MpsseCmdBuilder {
     }
 
     /// Send the preceding commands immediately.
-    pub fn send_immediate(&mut self) -> &mut Self {
+    fn send_immediate(&mut self) -> &mut Self {
         self.cmd.push(MpsseCmd::SendImmediate as u8);
         self
     }

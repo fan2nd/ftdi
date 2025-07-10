@@ -1,27 +1,32 @@
 use crate::ftdaye::FtdiError;
-use crate::mpsse::MpsseCmdBuilder;
-use crate::{FtMpsse, Pin, PinUse};
+use crate::mpsse_cmd::MpsseCmdBuilder;
+use crate::{FtdiMpsse, Pin, PinUse};
 use std::sync::{Arc, Mutex};
 
 /// FTDI output pin.
 pub struct OutputPin {
     /// Parent FTDI device.
-    mtx: Arc<Mutex<FtMpsse>>,
+    mtx: Arc<Mutex<FtdiMpsse>>,
     /// GPIO pin index.
     pin: Pin,
 }
 
 impl Drop for OutputPin {
     fn drop(&mut self) {
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let mut lock = self.mtx.lock().unwrap();
         lock.free_pin(self.pin);
     }
 }
 
 impl OutputPin {
-    pub fn new(mtx: Arc<Mutex<FtMpsse>>, pin: Pin) -> Result<OutputPin, FtdiError> {
+    pub fn new(mtx: Arc<Mutex<FtdiMpsse>>, pin: Pin) -> Result<OutputPin, FtdiError> {
+        if pin == Pin::Lower(2) {
+            return Err(FtdiError::Other(format!(
+                "In mpsse mode {pin:?} can not be use as input according to AN108-2.1."
+            )));
+        }
         {
-            let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
+            let mut lock = mtx.lock().unwrap();
 
             lock.alloc_pin(pin, PinUse::Output);
 
@@ -35,14 +40,13 @@ impl OutputPin {
                 Pin::Lower(_) => cmd.set_gpio_lower(byte.value, byte.direction),
                 Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
             };
-            cmd.send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
         }
         Ok(OutputPin { mtx, pin })
     }
 
     pub(crate) fn set(&self, state: bool) -> Result<(), FtdiError> {
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let mut lock = self.mtx.lock().unwrap();
 
         let byte = match self.pin {
             Pin::Lower(_) => &mut lock.lower,
@@ -60,7 +64,6 @@ impl OutputPin {
             Pin::Lower(_) => cmd.set_gpio_lower(byte.value, byte.direction),
             Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
         };
-        cmd.send_immediate();
         lock.write_read(cmd.as_slice(), &mut [])?;
 
         Ok(())
@@ -98,22 +101,26 @@ impl eh1::digital::OutputPin for OutputPin {
 /// FTDI input pin.
 pub struct InputPin {
     /// Parent FTDI device.
-    mtx: Arc<Mutex<FtMpsse>>,
+    mtx: Arc<Mutex<FtdiMpsse>>,
     /// GPIO pin index.
     pin: Pin,
 }
 
 impl Drop for InputPin {
     fn drop(&mut self) {
-        let mut lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let mut lock = self.mtx.lock().unwrap();
         lock.free_pin(self.pin);
     }
 }
 
 impl InputPin {
-    pub fn new(mtx: Arc<Mutex<FtMpsse>>, pin: Pin) -> Result<InputPin, FtdiError> {
-        {
-            let mut lock = mtx.lock().expect("Failed to aquire FTDI mutex");
+    pub fn new(mtx: Arc<Mutex<FtdiMpsse>>, pin: Pin) -> Result<InputPin, FtdiError> {
+        if pin == Pin::Lower(0) || pin == Pin::Lower(1) || pin == Pin::Lower(3) || {
+            return Err(FtdiError::Other(format!(
+                "In mpsse mode {pin:?} can not be use as input according to AN108-2.1."
+            )));
+        } {
+            let mut lock = mtx.lock().unwrap();
 
             lock.alloc_pin(pin, PinUse::Input);
 
@@ -127,14 +134,13 @@ impl InputPin {
                 Pin::Lower(_) => cmd.set_gpio_lower(byte.value, byte.direction),
                 Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
             };
-            cmd.send_immediate();
             lock.write_read(cmd.as_slice(), &mut [])?;
         }
         Ok(InputPin { mtx, pin })
     }
 
     pub(crate) fn get(&self) -> Result<bool, FtdiError> {
-        let lock = self.mtx.lock().expect("Failed to aquire FTDI mutex");
+        let lock = self.mtx.lock().unwrap();
 
         let mut buffer = [0u8; 1];
         let mut cmd = MpsseCmdBuilder::new();
@@ -142,7 +148,6 @@ impl InputPin {
             Pin::Lower(_) => cmd.gpio_lower(),
             Pin::Upper(_) => cmd.gpio_upper(),
         };
-        cmd.send_immediate();
         lock.write_read(cmd.as_slice(), &mut buffer)?;
 
         Ok((buffer[0] & self.mask()) != 0)
