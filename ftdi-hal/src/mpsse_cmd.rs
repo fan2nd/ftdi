@@ -50,7 +50,177 @@ enum MpsseCmd {
     // This command is only available to FT232
     _EnableDriveOnlyZero = 0x9E,
 }
+#[bitfield_struct::bitfield(u8)]
+struct MpsseShiftCmd {
+    neg_write: bool,
+    #[bits(default = true)] // when tms enable, this const true
+    bit_mode: bool,
+    neg_read: bool,
+    #[bits(default = true)] // when tms enable, this const true
+    lsb: bool,
+    tdi_write: bool,
+    tdo_read: bool,
+    #[bits(default = false)] // tms is used less frequency
+    tms_write: bool,
+    #[bits(default = false)]
+    _const_0: bool,
+}
+impl MpsseShiftCmd {
+    fn shift(tck_value: bool, bit_mode: bool, lsb: bool, tdi_write: bool, tdo_read: bool) -> Self {
+        assert!(
+            tdi_write | tdo_read,
+            "tdi_write and tdo_read can not be false tonight"
+        );
+        MpsseShiftCmd::new()
+            .with_neg_write((!tck_value) & tdi_write)
+            .with_bit_mode(bit_mode)
+            .with_neg_read(tck_value && tdo_read)
+            .with_lsb(lsb)
+            .with_tdi_write(tdi_write)
+            .with_tdo_read(tdo_read)
+    }
+    fn tms_shift(tck_value: bool, neg_read: bool, tdo_read: bool) -> Self {
+        MpsseShiftCmd::new()
+            .with_neg_write(!tck_value)
+            .with_neg_read(neg_read)
+            .with_tdo_read(tdo_read)
+            .with_tms_write(true)
+    }
+}
+#[cfg(test)]
+#[test]
+fn test() {
+    // AN108 3.3
+    assert_eq!(
+        0x10 as u8,
+        MpsseShiftCmd::shift(true, false, false, true, false).into()
+    );
+    assert_eq!(
+        0x11 as u8,
+        MpsseShiftCmd::shift(false, false, false, true, false).into()
+    );
+    assert_eq!(
+        0x12 as u8,
+        MpsseShiftCmd::shift(true, true, false, true, false).into()
+    );
+    assert_eq!(
+        0x13 as u8,
+        MpsseShiftCmd::shift(false, true, false, true, false).into()
+    );
 
+    assert_eq!(
+        0x20 as u8,
+        MpsseShiftCmd::shift(false, false, false, false, true).into()
+    );
+    assert_eq!(
+        0x24 as u8,
+        MpsseShiftCmd::shift(true, false, false, false, true).into()
+    );
+    assert_eq!(
+        0x22 as u8,
+        MpsseShiftCmd::shift(false, true, false, false, true).into()
+    );
+    assert_eq!(
+        0x26 as u8,
+        MpsseShiftCmd::shift(true, true, false, false, true).into()
+    );
+
+    assert_eq!(
+        0x31 as u8,
+        MpsseShiftCmd::shift(false, false, false, true, true).into()
+    );
+    assert_eq!(
+        0x34 as u8,
+        MpsseShiftCmd::shift(true, false, false, true, true).into()
+    );
+    assert_eq!(
+        0x33 as u8,
+        MpsseShiftCmd::shift(false, true, false, true, true).into()
+    );
+    assert_eq!(
+        0x36 as u8,
+        MpsseShiftCmd::shift(true, true, false, true, true).into()
+    );
+
+    // AN108-3.4
+    assert_eq!(
+        0x18 as u8,
+        MpsseShiftCmd::shift(true, false, true, true, false).into()
+    );
+    assert_eq!(
+        0x19 as u8,
+        MpsseShiftCmd::shift(false, false, true, true, false).into()
+    );
+    assert_eq!(
+        0x1a as u8,
+        MpsseShiftCmd::shift(true, true, true, true, false).into()
+    );
+    assert_eq!(
+        0x1b as u8,
+        MpsseShiftCmd::shift(false, true, true, true, false).into()
+    );
+
+    assert_eq!(
+        0x28 as u8,
+        MpsseShiftCmd::shift(false, false, true, false, true).into()
+    );
+    assert_eq!(
+        0x2c as u8,
+        MpsseShiftCmd::shift(true, false, true, false, true).into()
+    );
+    assert_eq!(
+        0x2a as u8,
+        MpsseShiftCmd::shift(false, true, true, false, true).into()
+    );
+    assert_eq!(
+        0x2e as u8,
+        MpsseShiftCmd::shift(true, true, true, false, true).into()
+    );
+
+    assert_eq!(
+        0x39 as u8,
+        MpsseShiftCmd::shift(false, false, true, true, true).into()
+    );
+    assert_eq!(
+        0x3c as u8,
+        MpsseShiftCmd::shift(true, false, true, true, true).into()
+    );
+    assert_eq!(
+        0x3b as u8,
+        MpsseShiftCmd::shift(false, true, true, true, true).into()
+    );
+    assert_eq!(
+        0x3e as u8,
+        MpsseShiftCmd::shift(true, true, true, true, true).into()
+    );
+
+    // AN108-3.5
+    // Note: The table in 3.5 is not correct. 
+    assert_eq!(
+        0x4a as u8,
+        MpsseShiftCmd::tms_shift(true, false, false).into()
+    );
+    assert_eq!(
+        0x4b as u8,
+        MpsseShiftCmd::tms_shift(false, false, false).into()
+    );
+    assert_eq!(
+        0x6a as u8,
+        MpsseShiftCmd::tms_shift(true, false, true).into()
+    );
+    assert_eq!(
+        0x6b as u8,
+        MpsseShiftCmd::tms_shift(false, false, true).into()
+    );
+    assert_eq!(
+        0x6e as u8,
+        MpsseShiftCmd::tms_shift(true, true, true).into()
+    );
+    assert_eq!(
+        0x6f as u8,
+        MpsseShiftCmd::tms_shift(false, true, true).into()
+    );
+}
 /// Modes for clocking data out of the FTDI device.
 ///
 /// This is an argument to the [`clock_bytes_out`] method.

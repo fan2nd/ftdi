@@ -20,50 +20,45 @@ impl Drop for OutputPin {
 
 impl OutputPin {
     pub fn new(mtx: Arc<Mutex<FtdiMpsse>>, pin: Pin) -> Result<OutputPin, FtdiError> {
-        if pin == Pin::Lower(2) {
-            return Err(FtdiError::Other(format!(
-                "In mpsse mode {pin:?} can not be use as input according to AN108-2.1."
-            )));
+        let mut lock = mtx.lock().unwrap();
+        let mut cmd = MpsseCmdBuilder::new();
+        lock.alloc_pin(pin, PinUse::Input);
+        match pin {
+            Pin::Lower(idx) => {
+                lock.lower.direction |= 1 << idx;
+                cmd.set_gpio_lower(lock.lower.value, lock.lower.direction);
+            }
+            Pin::Upper(idx) => {
+                lock.upper.direction |= 1 << idx;
+                cmd.set_gpio_upper(lock.upper.value, lock.upper.direction);
+            }
         }
-        {
-            let mut lock = mtx.lock().unwrap();
-
-            lock.alloc_pin(pin, PinUse::Output);
-
-            let (byte, idx) = match pin {
-                Pin::Lower(idx) => (&mut lock.lower, idx),
-                Pin::Upper(idx) => (&mut lock.upper, idx),
-            };
-            byte.direction |= 1 << idx;
-            let mut cmd = MpsseCmdBuilder::new();
-            match pin {
-                Pin::Lower(_) => cmd.set_gpio_lower(byte.value, byte.direction),
-                Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
-            };
-            lock.write_read(cmd.as_slice(), &mut [])?;
-        }
+        lock.write_read(cmd.as_slice(), &mut [])?;
+        drop(lock);
         Ok(OutputPin { mtx, pin })
     }
 
     pub(crate) fn set(&self, state: bool) -> Result<(), FtdiError> {
         let mut lock = self.mtx.lock().unwrap();
-
-        let byte = match self.pin {
-            Pin::Lower(_) => &mut lock.lower,
-            Pin::Upper(_) => &mut lock.upper,
-        };
-
-        if state {
-            byte.value |= self.mask();
-        } else {
-            byte.value &= !self.mask();
-        };
-
         let mut cmd = MpsseCmdBuilder::new();
         match self.pin {
-            Pin::Lower(_) => cmd.set_gpio_lower(byte.value, byte.direction),
-            Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
-        };
+            Pin::Lower(idx) => {
+                if state {
+                    lock.lower.value |= 1 << idx;
+                } else {
+                    lock.lower.value &= !(1 << idx);
+                }
+                cmd.set_gpio_lower(lock.lower.value, lock.lower.direction);
+            }
+            Pin::Upper(idx) => {
+                if state {
+                    lock.lower.value |= 1 << idx;
+                } else {
+                    lock.lower.value &= !(1 << idx);
+                }
+                cmd.set_gpio_upper(lock.upper.value, lock.upper.direction);
+            }
+        }
         lock.write_read(cmd.as_slice(), &mut [])?;
 
         Ok(())
@@ -115,27 +110,21 @@ impl Drop for InputPin {
 
 impl InputPin {
     pub fn new(mtx: Arc<Mutex<FtdiMpsse>>, pin: Pin) -> Result<InputPin, FtdiError> {
-        if pin == Pin::Lower(0) || pin == Pin::Lower(1) || pin == Pin::Lower(3) || {
-            return Err(FtdiError::Other(format!(
-                "In mpsse mode {pin:?} can not be use as input according to AN108-2.1."
-            )));
-        } {
-            let mut lock = mtx.lock().unwrap();
-
-            lock.alloc_pin(pin, PinUse::Input);
-
-            let (byte, idx) = match pin {
-                Pin::Lower(idx) => (&mut lock.lower, idx),
-                Pin::Upper(idx) => (&mut lock.upper, idx),
-            };
-            byte.direction &= !(1 << idx);
-            let mut cmd = MpsseCmdBuilder::new();
-            match pin {
-                Pin::Lower(_) => cmd.set_gpio_lower(byte.value, byte.direction),
-                Pin::Upper(_) => cmd.set_gpio_upper(byte.value, byte.direction),
-            };
-            lock.write_read(cmd.as_slice(), &mut [])?;
+        let mut lock = mtx.lock().unwrap();
+        let mut cmd = MpsseCmdBuilder::new();
+        lock.alloc_pin(pin, PinUse::Input);
+        match pin {
+            Pin::Lower(idx) => {
+                lock.lower.direction &= !(1 << idx);
+                cmd.set_gpio_lower(lock.lower.value, lock.lower.direction);
+            }
+            Pin::Upper(idx) => {
+                lock.upper.direction &= !(1 << idx);
+                cmd.set_gpio_upper(lock.upper.value, lock.upper.direction);
+            }
         }
+        lock.write_read(cmd.as_slice(), &mut [])?;
+        drop(lock);
         Ok(InputPin { mtx, pin })
     }
 
