@@ -47,6 +47,14 @@ pub enum Pin {
     Lower(usize),
     Upper(usize),
 }
+impl Pin {
+    fn mask(&self) -> u8 {
+        match self {
+            Pin::Lower(idx) => 1 << idx,
+            Pin::Upper(idx) => 1 << idx,
+        }
+    }
+}
 /// State tracker for each pin on the FTDI chip.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PinUse {

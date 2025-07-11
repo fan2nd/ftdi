@@ -63,14 +63,6 @@ impl OutputPin {
 
         Ok(())
     }
-    /// Convert the GPIO pin index to a pin mask
-    pub(crate) fn mask(&self) -> u8 {
-        let idx = match self.pin {
-            Pin::Lower(idx) => idx,
-            Pin::Upper(idx) => idx,
-        };
-        1 << idx
-    }
 }
 
 impl eh1::digital::Error for FtdiError {
@@ -139,16 +131,7 @@ impl InputPin {
         };
         lock.write_read(cmd.as_slice(), &mut buffer)?;
 
-        Ok((buffer[0] & self.mask()) != 0)
-    }
-
-    /// Convert the GPIO pin index to a pin mask
-    pub(crate) fn mask(&self) -> u8 {
-        let idx = match self.pin {
-            Pin::Lower(idx) => idx,
-            Pin::Upper(idx) => idx,
-        };
-        1 << idx
+        Ok((buffer[0] & self.pin.mask()) != 0)
     }
 }
 
