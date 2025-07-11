@@ -84,7 +84,7 @@ impl MpsseShiftCmd {
             "tdi_write and tdo_read can not be false tonight"
         );
         MpsseShiftCmd::new()
-            .with_tdi_neg_write((!tck_init_value) & tdi_write)
+            .with_tdi_neg_write((!tck_init_value) && tdi_write)
             .with_is_bit_mode(is_bit_mode)
             .with_tdo_neg_read(tck_init_value && tdo_read)
             .with_is_lsb(is_lsb)
@@ -94,7 +94,7 @@ impl MpsseShiftCmd {
     fn tms_shift(tck_init_value: bool, tdo_neg_read: bool, tdo_read: bool) -> Self {
         MpsseShiftCmd::new()
             .with_tdi_neg_write(!tck_init_value)
-            .with_tdo_neg_read(tdo_neg_read)
+            .with_tdo_neg_read(tdo_neg_read && tdo_read)
             .with_tdo_read(tdo_read)
             .with_tms_write(true)
     }
@@ -213,8 +213,16 @@ fn test() {
         MpsseShiftCmd::tms_shift(true, false, false).into()
     );
     assert_eq!(
+        0x4a as u8,
+        MpsseShiftCmd::tms_shift(true, true, false).into()
+    );
+    assert_eq!(
         0x4b as u8,
         MpsseShiftCmd::tms_shift(false, false, false).into()
+    );
+    assert_eq!(
+        0x4b as u8,
+        MpsseShiftCmd::tms_shift(false, true, false).into()
     );
     assert_eq!(
         0x6a as u8,
