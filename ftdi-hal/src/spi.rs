@@ -1,5 +1,5 @@
 use crate::ftdaye::FtdiError;
-use crate::mpsse_cmd::{ClockBytes, ClockBytesIn, ClockBytesOut, MpsseCmdBuilder};
+use crate::mpsse_cmd::MpsseCmdBuilder;
 use crate::{FtdiMpsse, Pin, PinUse};
 use eh1::spi::{Error, ErrorKind, ErrorType, SpiBus};
 use std::sync::{Arc, Mutex};
@@ -16,42 +16,6 @@ pub enum SpiMode {
     MsbMode2,
     LsbMode2,
 }
-#[derive(Debug, Clone, Copy)]
-struct SpiCommond {
-    write_read: ClockBytes,
-    read: ClockBytesIn,
-    write: ClockBytesOut,
-}
-const MSB_MODE0: SpiCommond = SpiCommond {
-    write_read: ClockBytes::Tck0Msb,
-    read: ClockBytesIn::Tck0Msb,
-    write: ClockBytesOut::Tck0Msb,
-};
-const LSB_MODE0: SpiCommond = SpiCommond {
-    write_read: ClockBytes::Tck0Lsb,
-    read: ClockBytesIn::Tck0Lsb,
-    write: ClockBytesOut::Tck0Lsb,
-};
-const MSB_MODE2: SpiCommond = SpiCommond {
-    write_read: ClockBytes::Tck1Msb,
-    read: ClockBytesIn::Tck1Msb,
-    write: ClockBytesOut::Tck1Msb,
-};
-const LSB_MODE2: SpiCommond = SpiCommond {
-    write_read: ClockBytes::Tck1Lsb,
-    read: ClockBytesIn::Tck1Lsb,
-    write: ClockBytesOut::Tck1Lsb,
-};
-impl From<SpiMode> for SpiCommond {
-    fn from(value: SpiMode) -> Self {
-        match value {
-            SpiMode::MsbMode0 => MSB_MODE0,
-            SpiMode::LsbMode0 => LSB_MODE0,
-            SpiMode::MsbMode2 => MSB_MODE2,
-            SpiMode::LsbMode2 => LSB_MODE2,
-        }
-    }
-}
 
 /// FTDI SPI bus.
 ///
@@ -60,7 +24,8 @@ pub struct Spi {
     /// Parent FTDI device.
     mtx: Arc<Mutex<FtdiMpsse>>,
     /// SPI polarity
-    cmd: SpiCommond,
+    tck_init_value: bool,
+    is_lsb: bool,
 }
 
 impl Drop for Spi {
@@ -91,7 +56,8 @@ impl Spi {
         }
         Ok(Spi {
             mtx,
-            cmd: MSB_MODE0,
+            tck_init_value: false,
+            is_lsb: false,
         })
     }
     /// set spi mode and bitorder
@@ -99,13 +65,18 @@ impl Spi {
         let mut lock = self.mtx.lock().unwrap();
         // set SCK polarity
         match mode {
-            SpiMode::MsbMode0 | SpiMode::LsbMode0 => lock.lower.value &= 0xfe, // set SCK(AD0) to 0
+            SpiMode::MsbMode0 | SpiMode::LsbMode0 => lock.lower.value &= !(0x01), // set SCK(AD0) to 0
             SpiMode::MsbMode2 | SpiMode::LsbMode2 => lock.lower.value |= 0x01, // set SCK(AD0) to 1
         }
         let mut cmd = MpsseCmdBuilder::new();
         cmd.set_gpio_lower(lock.lower.value, lock.lower.direction);
         lock.write_read(cmd.as_slice(), &mut [])?;
-        self.cmd = mode.into();
+        (self.tck_init_value, self.is_lsb) = match mode {
+            SpiMode::MsbMode0 => (false, false),
+            SpiMode::LsbMode0 => (false, true),
+            SpiMode::MsbMode2 => (true, false),
+            SpiMode::LsbMode2 => (true, true),
+        };
         Ok(())
     }
 }
@@ -123,7 +94,7 @@ impl ErrorType for Spi {
 impl SpiBus<u8> for Spi {
     fn read(&mut self, words: &mut [u8]) -> Result<(), Self::Error> {
         let mut cmd = MpsseCmdBuilder::new();
-        cmd.clock_bytes_in(self.cmd.read, words.len());
+        cmd.clock_bytes_in(self.tck_init_value, self.is_lsb, words.len());
 
         let lock = self.mtx.lock().unwrap();
         lock.write_read(cmd.as_slice(), words)?;
@@ -133,7 +104,7 @@ impl SpiBus<u8> for Spi {
 
     fn write(&mut self, words: &[u8]) -> Result<(), Self::Error> {
         let mut cmd = MpsseCmdBuilder::new();
-        cmd.clock_bytes_out(self.cmd.write, words);
+        cmd.clock_bytes_out(self.tck_init_value, self.is_lsb, words);
 
         let lock = self.mtx.lock().unwrap();
         lock.write_read(cmd.as_slice(), &mut [])?;
@@ -147,7 +118,7 @@ impl SpiBus<u8> for Spi {
 
     fn transfer_in_place(&mut self, words: &mut [u8]) -> Result<(), Self::Error> {
         let mut cmd = MpsseCmdBuilder::new();
-        cmd.clock_bytes(self.cmd.write_read, words);
+        cmd.clock_bytes(self.tck_init_value, self.is_lsb, words);
 
         let lock = self.mtx.lock().unwrap();
 
@@ -158,7 +129,7 @@ impl SpiBus<u8> for Spi {
 
     fn transfer(&mut self, read: &mut [u8], write: &[u8]) -> Result<(), Self::Error> {
         let mut cmd = MpsseCmdBuilder::new();
-        cmd.clock_bytes(self.cmd.write_read, write);
+        cmd.clock_bytes(self.tck_init_value, self.is_lsb, write);
 
         let lock = self.mtx.lock().unwrap();
         lock.write_read(cmd.as_slice(), read)?;

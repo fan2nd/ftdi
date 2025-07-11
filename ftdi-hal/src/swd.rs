@@ -3,11 +3,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
-use crate::{
-    FtdiMpsse, Pin, PinUse,
-    ftdaye::FtdiError,
-    mpsse_cmd::{ClockBitsIn, ClockBitsOut, ClockBytesIn, ClockBytesOut, MpsseCmdBuilder},
-};
+use crate::{FtdiMpsse, Pin, PinUse, ftdaye::FtdiError, mpsse_cmd::MpsseCmdBuilder};
 
 /// SCK bitmask
 const SCK: u8 = 1 << 0;
@@ -27,10 +23,8 @@ impl DerefMut for SwdCmdBuilder {
     }
 }
 impl SwdCmdBuilder {
-    const BITS_IN: ClockBitsIn = ClockBitsIn::Tck1Lsb;
-    const BITS_OUT: ClockBitsOut = ClockBitsOut::Tck1Lsb;
-    const BYTES_IN: ClockBytesIn = ClockBytesIn::Tck1Lsb;
-    const BYTES_OUT: ClockBytesOut = ClockBytesOut::Tck1Lsb;
+    const TCK_INIT_VALUE: bool = true;
+    const IS_LSB: bool = true;
     fn new() -> Self {
         SwdCmdBuilder(MpsseCmdBuilder::new())
     }
@@ -39,9 +33,9 @@ impl SwdCmdBuilder {
         const SEQUENCE: [u8; 2] = u16::to_be_bytes(0x79e7); // Activation pattern (MSB first)
 
         self.swd_out(lock)
-            .clock_bytes_out(ClockBytesOut::Tck1Lsb, &ONES) // >50 ones (LSB first)
-            .clock_bytes_out(ClockBytesOut::Tck1Msb, &SEQUENCE) // Activation pattern (MSB first)
-            .clock_bytes_out(ClockBytesOut::Tck1Lsb, &ONES) // >50 ones (LSB first)
+            .clock_bytes_out(Self::TCK_INIT_VALUE,Self::IS_LSB, &ONES) // >50 ones (LSB first)
+            .clock_bytes_out(Self::TCK_INIT_VALUE,false, &SEQUENCE) // Activation pattern (MSB first)
+            .clock_bytes_out(Self::TCK_INIT_VALUE,Self::IS_LSB, &ONES) // >50 ones (LSB first)
             ;
         self
     }
@@ -54,30 +48,30 @@ impl SwdCmdBuilder {
         self
     }
     fn swd_trn(&mut self) -> &mut Self {
-        self.clock_bits_out(Self::BITS_OUT, 0xff, 1);
+        self.clock_bits_out(Self::TCK_INIT_VALUE, Self::IS_LSB, 0xff, 1);
         self
     }
     fn swd_send_request(&mut self, request: u8) -> &mut Self {
-        self.clock_bytes_out(Self::BYTES_OUT, &[request]); // // Send request
+        self.clock_bytes_out(Self::TCK_INIT_VALUE, Self::IS_LSB, &[request]); // // Send request
         self
     }
     fn swd_read_response(&mut self) -> &mut Self {
-        self.clock_bits_in(Self::BITS_IN, 3);
+        self.clock_bits_in(Self::TCK_INIT_VALUE, Self::IS_LSB, 3);
         self
     }
     fn swd_read_data(&mut self) -> &mut Self {
         const DATA_BYTES: usize = 4;
         const PARITY_BITS: usize = 1;
-        self.clock_bytes_in(Self::BYTES_IN, DATA_BYTES)
-            .clock_bits_in(Self::BITS_IN, PARITY_BITS);
+        self.clock_bytes_in(Self::TCK_INIT_VALUE, Self::IS_LSB, DATA_BYTES)
+            .clock_bits_in(Self::TCK_INIT_VALUE, Self::IS_LSB, PARITY_BITS);
         self
     }
     fn swd_write_data(&mut self, value: u32) -> &mut Self {
         const PARITY_BITS: usize = 1;
         let bytes = value.to_le_bytes();
         let parity = (value.count_ones() & 0x01) as u8;
-        self.clock_bytes_out(Self::BYTES_OUT, &bytes)
-            .clock_bits_out(Self::BITS_OUT, parity, PARITY_BITS);
+        self.clock_bytes_out(Self::TCK_INIT_VALUE, Self::IS_LSB, &bytes)
+            .clock_bits_out(Self::TCK_INIT_VALUE, Self::IS_LSB, parity, PARITY_BITS);
         self
     }
 }

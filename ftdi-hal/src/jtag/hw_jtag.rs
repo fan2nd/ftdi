@@ -1,8 +1,5 @@
 use crate::ftdaye::FtdiError;
-use crate::mpsse_cmd::{
-    ClockBits, ClockBitsIn, ClockBitsOut, ClockBytes, ClockBytesIn, ClockBytesOut, ClockTMS,
-    ClockTMSOut, MpsseCmdBuilder,
-};
+use crate::mpsse_cmd::MpsseCmdBuilder;
 use crate::{FtdiMpsse, OutputPin, Pin, PinUse};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
@@ -11,15 +8,9 @@ use std::sync::{Arc, Mutex};
 // TDO(AD2) can only can sample on first edge.
 // according to AN108-2.2.
 // https://ftdichip.com/Support/Documents/AppNotes/AN_108_Command_Processor_for_MPSSE_and_MCU_Host_Bus_Emulation_Modes.pdf
-const BYTES_WRITE: ClockBytesOut = ClockBytesOut::Tck0Lsb;
-const BYTES_READ: ClockBytesIn = ClockBytesIn::Tck0Lsb;
-const BYTES_WRITE_READ: ClockBytes = ClockBytes::Tck0Lsb;
-const BITS_WRITE: ClockBitsOut = ClockBitsOut::Tck0Lsb;
-const BITS_READ: ClockBitsIn = ClockBitsIn::Tck0Lsb;
-const BITS_WRITE_READ: ClockBits = ClockBits::Tck0Lsb;
-// TMS Commond not
-const TMS_WRITE: ClockTMSOut = ClockTMSOut::Tck0;
-const TMS_WRITE_READ: ClockTMS = ClockTMS::Tck0PosTDO;
+const TCK_INIT_VALUE: bool = false;
+const IS_LSB: bool = true;
+const TDO_NEG_READ: bool = false;
 
 pub struct JtagCmdBuilder(MpsseCmdBuilder);
 impl JtagCmdBuilder {
@@ -27,27 +18,33 @@ impl JtagCmdBuilder {
         JtagCmdBuilder(MpsseCmdBuilder::new())
     }
     fn jtag_any2idle(&mut self) -> &mut Self {
-        self.0.clock_tms_out(TMS_WRITE, 0b0001_1111, true, 6);
+        self.0
+            .clock_tms_out(TCK_INIT_VALUE, TDO_NEG_READ, 0b0001_1111, true, 6);
         self
     }
     fn jtag_idle_cycle(&mut self) -> &mut Self {
-        self.0.clock_tms_out(TMS_WRITE, 0, true, 7);
+        self.0
+            .clock_tms_out(TCK_INIT_VALUE, TDO_NEG_READ, 0, true, 7);
         self
     }
     fn jtag_idle2ir(&mut self) -> &mut Self {
-        self.0.clock_tms_out(TMS_WRITE, 0b0000_0011, true, 4);
+        self.0
+            .clock_tms_out(TCK_INIT_VALUE, TDO_NEG_READ, 0b0000_0011, true, 4);
         self
     }
     fn jtag_ir_exit2dr(&mut self) -> &mut Self {
-        self.0.clock_tms_out(TMS_WRITE, 0b0000_0011, true, 4);
+        self.0
+            .clock_tms_out(TCK_INIT_VALUE, TDO_NEG_READ, 0b0000_0011, true, 4);
         self
     }
     fn jtag_idle2dr(&mut self) -> &mut Self {
-        self.0.clock_tms_out(TMS_WRITE, 0b0000_0001, true, 3);
+        self.0
+            .clock_tms_out(TCK_INIT_VALUE, TDO_NEG_READ, 0b0000_0001, true, 3);
         self
     }
     fn jtag_dr_exit2idle(&mut self) -> &mut Self {
-        self.0.clock_tms_out(TMS_WRITE, 0b0000_0001, true, 2);
+        self.0
+            .clock_tms_out(TCK_INIT_VALUE, TDO_NEG_READ, 0b0000_0001, true, 2);
         self
     }
     fn jtag_shift(&mut self, data: &[u8], bits_count: usize) -> &mut Self {
@@ -59,9 +56,9 @@ impl JtagCmdBuilder {
         };
         let remain_bits = (bits_count & 0b111) - 1; // not include full bytes and last bit
         let last_bit = data[bytes_count] >> data[bytes_count] >> remain_bits == 1;
-        self.clock_bytes(BYTES_WRITE_READ, &data[0..bytes_count])
-            .clock_bits(BITS_WRITE_READ, data[bytes_count], remain_bits)
-            .clock_tms(TMS_WRITE_READ, 0b0000_0001, last_bit, 1);
+        self.clock_bytes(TCK_INIT_VALUE, IS_LSB, &data[0..bytes_count])
+            .clock_bits(TCK_INIT_VALUE, IS_LSB, data[bytes_count], remain_bits)
+            .clock_tms(TCK_INIT_VALUE, TDO_NEG_READ, 0b0000_0001, last_bit, 1);
         self
     }
     fn jtag_shift_write(&mut self, data: &[u8], bits_count: usize) -> &mut Self {
@@ -73,9 +70,9 @@ impl JtagCmdBuilder {
         };
         let remain_bits = (bits_count & 0b111) - 1; // not include full bytes and last bit
         let last_bit = data[bytes_count] >> data[bytes_count] >> remain_bits == 1;
-        self.clock_bytes_out(BYTES_WRITE, &data[0..bytes_count])
-            .clock_bits_out(BITS_WRITE, data[bytes_count], remain_bits)
-            .clock_tms_out(TMS_WRITE, 0b0000_0001, last_bit, 1);
+        self.clock_bytes_out(TCK_INIT_VALUE, IS_LSB, &data[0..bytes_count])
+            .clock_bits_out(TCK_INIT_VALUE, IS_LSB, data[bytes_count], remain_bits)
+            .clock_tms_out(TCK_INIT_VALUE, TDO_NEG_READ, 0b0000_0001, last_bit, 1);
         self
     }
     fn jtag_shift_read(&mut self, bits_count: usize) -> &mut Self {
@@ -87,9 +84,9 @@ impl JtagCmdBuilder {
         };
         let remain_bits = (bits_count & 0b111) - 1; // not include full bytes and last bit
         let last_bit = Default::default(); // 
-        self.clock_bytes_in(BYTES_READ, bytes_count)
-            .clock_bits_in(BITS_READ, remain_bits)
-            .clock_tms(TMS_WRITE_READ, 0b0000_0001, last_bit, 1);
+        self.clock_bytes_in(TCK_INIT_VALUE, IS_LSB, bytes_count)
+            .clock_bits_in(TCK_INIT_VALUE, IS_LSB, remain_bits)
+            .clock_tms(TCK_INIT_VALUE, TDO_NEG_READ, 0b0000_0001, last_bit, 1);
         self
     }
     fn jtag_parse_single_shift(response: &mut [u8], bits_count: usize) -> usize {
@@ -223,7 +220,7 @@ impl Jtag {
 
         'outer: loop {
             let mut cmd = MpsseCmdBuilder::new();
-            cmd.clock_bytes(BYTES_WRITE_READ, &tdi);
+            cmd.clock_bytes(TCK_INIT_VALUE, IS_LSB, &tdi);
             let read_buf = &mut [0; 4];
             lock.write_read(cmd.as_slice(), read_buf)?;
             let tdos: Vec<_> = read_buf

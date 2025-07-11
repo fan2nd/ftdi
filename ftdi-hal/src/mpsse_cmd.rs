@@ -6,12 +6,7 @@
 /// Exported for use by [`mpsse`] macro. May also be used for manual command array construction.
 ///
 /// Data clocking MPSSE commands are broken out into separate enums for API ergonomics:
-/// * [`ClockBytesOut`]
-/// * [`ClockBitsOut`]
-/// * [`ClockBytesIn`]
-/// * [`ClockBitsIn`]
-/// * [`ClockBytes`]
-/// * [`ClockBits`]
+/// * [`MpsseShiftCmd`]
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
 enum MpsseCmd {
@@ -50,14 +45,25 @@ enum MpsseCmd {
     // This command is only available to FT232
     _EnableDriveOnlyZero = 0x9E,
 }
+/// Modes for data shift of the FTDI device.
+///
+/// When tms_write is false:
+///
+/// TDI(AD1) can only can output on second edge.
+///
+/// TDO(AD2) can only can sample on first edge.
+///
+/// When tms_write is true:
+///
+/// TMS(AD3) can only can output on second edge.
 #[bitfield_struct::bitfield(u8)]
 struct MpsseShiftCmd {
-    neg_write: bool,
+    tdi_neg_write: bool,
     #[bits(default = true)] // when tms enable, this const true
-    bit_mode: bool,
-    neg_read: bool,
+    is_bit_mode: bool,
+    tdo_neg_read: bool,
     #[bits(default = true)] // when tms enable, this const true
-    lsb: bool,
+    is_lsb: bool,
     tdi_write: bool,
     tdo_read: bool,
     #[bits(default = false)] // tms is used less frequency
@@ -66,23 +72,29 @@ struct MpsseShiftCmd {
     _const_0: bool,
 }
 impl MpsseShiftCmd {
-    fn shift(tck_value: bool, bit_mode: bool, lsb: bool, tdi_write: bool, tdo_read: bool) -> Self {
+    fn shift(
+        tck_init_value: bool,
+        is_bit_mode: bool,
+        is_lsb: bool,
+        tdi_write: bool,
+        tdo_read: bool,
+    ) -> Self {
         assert!(
             tdi_write | tdo_read,
             "tdi_write and tdo_read can not be false tonight"
         );
         MpsseShiftCmd::new()
-            .with_neg_write((!tck_value) & tdi_write)
-            .with_bit_mode(bit_mode)
-            .with_neg_read(tck_value && tdo_read)
-            .with_lsb(lsb)
+            .with_tdi_neg_write((!tck_init_value) & tdi_write)
+            .with_is_bit_mode(is_bit_mode)
+            .with_tdo_neg_read(tck_init_value && tdo_read)
+            .with_is_lsb(is_lsb)
             .with_tdi_write(tdi_write)
             .with_tdo_read(tdo_read)
     }
-    fn tms_shift(tck_value: bool, neg_read: bool, tdo_read: bool) -> Self {
+    fn tms_shift(tck_init_value: bool, tdo_neg_read: bool, tdo_read: bool) -> Self {
         MpsseShiftCmd::new()
-            .with_neg_write(!tck_value)
-            .with_neg_read(neg_read)
+            .with_tdi_neg_write(!tck_init_value)
+            .with_tdo_neg_read(tdo_neg_read)
             .with_tdo_read(tdo_read)
             .with_tms_write(true)
     }
@@ -195,7 +207,7 @@ fn test() {
     );
 
     // AN108-3.5
-    // Note: The table in 3.5 is not correct. 
+    // Note: The table in 3.5 is not correct.
     assert_eq!(
         0x4a as u8,
         MpsseShiftCmd::tms_shift(true, false, false).into()
@@ -220,317 +232,6 @@ fn test() {
         0x6f as u8,
         MpsseShiftCmd::tms_shift(false, true, true).into()
     );
-}
-/// Modes for clocking data out of the FTDI device.
-///
-/// This is an argument to the [`clock_bytes_out`] method.
-///
-/// [`clock_bytes_out`]: MpsseCmdBuilder::clock_bytes_out
-///
-/// TDI(AD1) can only can output on second edge.
-///
-/// TDO(AD2) can only can sample on first edge.
-#[repr(u8)]
-#[derive(Debug, Copy, Clone)]
-pub enum ClockBytesOut {
-    /// Positive clock edge MSB first.
-    ///
-    /// The data is sent MSB first.
-    ///
-    /// The data will change to the next bit on the rising edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '1'**
-    Tck1Msb = 0x10,
-    /// Negative clock edge MSB first.
-    ///
-    /// The data is sent MSB first.
-    ///
-    /// The data will change to the next bit on the falling edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '0'**
-    Tck0Msb = 0x11,
-    /// Positive clock edge LSB first.
-    ///
-    /// The first bit in will be the LSB of the first byte and so on.
-    ///
-    /// The data will change to the next bit on the rising edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '1'**
-    Tck1Lsb = 0x18,
-    /// Negative clock edge LSB first.
-    ///
-    /// The first bit in will be the LSB of the first byte and so on.
-    ///
-    /// The data will change to the next bit on the falling edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '0'**
-    Tck0Lsb = 0x19,
-}
-
-/// Modes for clocking bits out of the FTDI device.
-///
-/// This is an argument to the [`clock_bits_out`] method.
-///
-/// [`clock_bits_out`]: MpsseCmdBuilder::clock_bits_out
-///
-/// TDI(AD1) can only can output on second edge.
-///
-/// TDO(AD2) can only can sample on first edge.
-#[repr(u8)]
-#[derive(Debug, Copy, Clone)]
-pub enum ClockBitsOut {
-    /// Positive clock edge MSB first.
-    ///
-    /// The data is sent MSB first (bit 7 first).
-    ///
-    /// The data will change to the next bit on the rising edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '1'**
-    _Tck1Msb = 0x12,
-    /// Negative clock edge MSB first.
-    ///
-    /// The data is sent MSB first (bit 7 first).
-    ///
-    /// The data will change to the next bit on the falling edge of the CLK pin.=
-    ///
-    /// **Use only if clk is set to '0'**
-    Tck0Msb = 0x13,
-    /// Positive clock edge LSB first (bit 0 first).
-    ///
-    /// The first bit in will be the LSB of the first byte and so on.
-    ///
-    /// The data will change to the next bit on the rising edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '1'**
-    Tck1Lsb = 0x1A,
-    /// Negative clock edge LSB first (bit 0 first).
-    ///
-    /// The first bit in will be the LSB of the first byte and so on.
-    ///
-    /// The data will change to the next bit on the falling edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '0'**
-    Tck0Lsb = 0x1B,
-}
-
-/// Modes for clocking data into the FTDI device.
-///
-/// This is an argument to the [`clock_bytes_in`] method.
-///
-/// [`clock_bytes_in`]: MpsseCmdBuilder::clock_bytes_in
-///
-/// TDI(AD1) can only can output on second edge.
-///
-/// TDO(AD2) can only can sample on first edge.
-#[repr(u8)]
-#[derive(Debug, Copy, Clone)]
-pub enum ClockBytesIn {
-    /// Positive clock edge MSB first.
-    ///
-    /// The first bit in will be the MSB of the first byte and so on.
-    ///
-    /// The data will be sampled on the rising edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '0'**
-    Tck0Msb = 0x20,
-    /// Negative clock edge MSB first.
-    ///
-    /// The first bit in will be the MSB of the first byte and so on.
-    ///
-    /// The data will be sampled on the falling edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '1'**
-    Tck1Msb = 0x24,
-    /// Positive clock edge LSB first.
-    ///
-    /// The first bit in will be the LSB of the first byte and so on.
-    ///
-    /// The data will be sampled on the rising edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '0'**
-    Tck0Lsb = 0x28,
-    /// Negative clock edge LSB first.
-    ///
-    /// The first bit in will be the LSB of the first byte and so on.
-    ///
-    /// The data will be sampled on the falling edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '1'**
-    Tck1Lsb = 0x2C,
-}
-
-/// Modes for clocking data bits into the FTDI device.
-///
-/// This is an argument to the [`clock_bits_in`] method.
-///
-/// [`clock_bits_in`]: MpsseCmdBuilder::clock_bits_in
-///
-/// TDI(AD1) can only can output on second edge.
-///
-/// TDO(AD2) can only can sample on first edge.
-#[repr(u8)]
-#[derive(Debug, Copy, Clone)]
-pub enum ClockBitsIn {
-    /// Positive clock edge MSB first.
-    ///
-    /// The data will be shifted up so that the first bit in may not be in bit 7
-    /// but from 6 downwards depending on the number of bits to shift
-    /// (i.e. a length of 1 bit will have the data bit sampled in bit 0 of the
-    /// byte sent back to the PC).
-    ///
-    /// The data will be sampled on the rising edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '0'**
-    Tck0Msb = 0x22,
-    /// Negative clock edge MSB first.
-    ///
-    /// The data will be shifted up so that the first bit in may not be in bit 7
-    /// but from 6 downwards depending on the number of bits to shift
-    /// (i.e. a length of 1 bit will have the data bit sampled in bit 0 of the
-    /// byte sent back to the PC).
-    ///
-    /// The data will be sampled on the falling edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '1'**
-    _Tck1Msb = 0x26,
-    /// Positive clock edge LSB first.
-    ///
-    /// The data will be shifted down so that the first bit in may not be in bit
-    /// 0 but from 1 upwards depending on the number of bits to shift
-    /// (i.e. a length of 1 bit will have the data bit sampled in bit 7 of the
-    /// byte sent back to the PC).
-    ///
-    /// The data will be sampled on the rising edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '0'**
-    Tck0Lsb = 0x2A,
-    /// Negative clock edge LSB first.
-    ///
-    /// The data will be shifted down so that the first bit in may not be in bit
-    /// 0 but from 1 upwards depending on the number of bits to shift
-    /// (i.e. a length of 1 bit will have the data bit sampled in bit 7 of the
-    /// byte sent back to the PC).
-    ///
-    /// The data will be sampled on the falling edge of the CLK pin.
-    ///
-    /// **Use only if clk is set to '1'**
-    Tck1Lsb = 0x2E,
-}
-
-/// Modes for clocking data in and out of the FTDI device.
-///
-/// This is an argument to the [`clock_bytes`] method.
-///
-/// [`clock_bytes`]: MpsseCmdBuilder::clock_bytes
-///
-/// TDI(AD1) can only can output on second edge.
-///
-/// TDO(AD2) can only can sample on first edge.
-#[repr(u8)]
-#[derive(Debug, Copy, Clone)]
-pub enum ClockBytes {
-    /// MSB first, data in on positive edge, data out on negative edge.
-    ///
-    /// **Use only if clk is set to '0'**
-    Tck0Msb = 0x31,
-    /// MSB first, data in on negative edge, data out on positive edge.
-    ///
-    /// **Use only if clk is set to '1'**
-    Tck1Msb = 0x34,
-    /// LSB first, data in on positive edge, data out on negative edge.
-    ///
-    /// **Use only if clk is set to '0'**
-    Tck0Lsb = 0x39,
-    /// LSB first, data in on negative edge, data out on positive edge.
-    ///
-    /// **Use only if clk is set to '1'**
-    Tck1Lsb = 0x3C,
-}
-
-/// Modes for clocking data bits in and out of the FTDI device.
-///
-/// This is an argument to the [`clock_bits`] method.
-///
-/// [`clock_bits`]: MpsseCmdBuilder::clock_bits
-///
-/// TDI(AD1) can only can output on second edge.
-///
-/// TDO(AD2) can only can sample on first edge.
-#[repr(u8)]
-#[derive(Debug, Copy, Clone)]
-pub enum ClockBits {
-    /// MSB first, data in on positive edge, data out on negative edge.
-    ///
-    /// **Use only if clk is set to '0'**
-    _Tck0Msb = 0x33,
-    /// MSB first, data in on negative edge, data out on positive edge.
-    ///
-    /// **Use only if clk is set to '1'**
-    _Tck1Msb = 0x36,
-    /// LSB first, data in on positive edge, data out on negative edge.
-    ///
-    /// **Use only if clk is set to '0'**
-    Tck0Lsb = 0x3B,
-    /// LSB first, data in on negative edge, data out on positive edge.
-    ///
-    /// **Use only if clk is set to '1'**
-    _Tck1Lsb = 0x3E,
-}
-
-/// Modes for clocking bits out on TMS for JTAG mode.
-///
-/// This is an argument to the [`clock_tms_out`] method.
-///
-/// [`clock_tms_out`]: MpsseCmdBuilder::clock_tms_out
-///
-/// TMS(AD3) can only can output on second edge.
-#[repr(u8)]
-#[derive(Debug, Copy, Clone)]
-pub enum ClockTMSOut {
-    /// LSB first, TMS out on positive edge
-    ///
-    /// **Use only if clk is set to '1'**
-    ///
-    /// No use because jtag sample on positive edge
-    _Tck1 = 0x4A,
-    /// LSB first, TMS out on negative edge
-    ///  
-    /// **Use only if clk is set to '0'**
-    Tck0 = 0x4B,
-}
-
-/// Modes for clocking bits out on TMS for JTAG mode while reading TDO.
-///
-/// This is an argument to the [`clock_tms`] method.
-///
-/// [`clock_tms`]: MpsseCmdBuilder::clock_tms
-///
-/// TMS(AD3) can only can output on second edge.
-#[repr(u8)]
-#[derive(Debug, Copy, Clone)]
-pub enum ClockTMS {
-    /// LSB first, TMS out on positive edge, TDO in on positive edge.
-    ///
-    /// **Use only if clk is set to '1'**
-    ///
-    /// No use because jtag tck need init to 0
-    _Tck1PosTDO = 0x6A,
-    /// LSB first, TMS out on negative edge, TDO in on positive edge.
-    ///
-    /// **Use only if clk is set to '0'**
-    Tck0PosTDO = 0x6B,
-    /// LSB first, TMS out on positive edge, TDO in on negative edge.
-    ///
-    /// **Use only if clk is set to '1'**
-    ///
-    /// No use because jtag tdo sample on positive edge
-    _Tck1NegTDO = 0x6E,
-    /// LSB first, TMS out on negative edge, TDO in on negative edge.
-    ///
-    /// **Use only if clk is set to '0'**
-    ///
-    /// No use because jtag tdo sample on positive edge
-    _Tck0NegTDO = 0x6F,
 }
 
 /// FTDI Multi-Protocol Synchronous Serial Engine (MPSSE) command builder.
@@ -737,15 +438,18 @@ impl MpsseCmdBuilder {
     /// No data is clocked into the device on TDO/DI.
     ///
     /// This will panic for data lengths greater than `u16::MAX + 1`.
-    pub fn clock_bytes_out(&mut self, mode: ClockBytesOut, data: &[u8]) -> &mut Self {
+    pub fn clock_bytes_out(&mut self, tck_init_value: bool, lsb: bool, data: &[u8]) -> &mut Self {
         let mut len = data.len();
         if len == 0 {
             return self;
         }
-        assert!(len <= 65536, "data length should be in 1..=u16::MAX+1");
+        assert!(len <= 65536, "data length should be in 1..=65536");
         len -= 1;
-        self.cmd
-            .extend_from_slice(&[mode as u8, (len & 0xFF) as u8, ((len >> 8) & 0xFF) as u8]);
+        self.cmd.extend_from_slice(&[
+            MpsseShiftCmd::shift(tck_init_value, false, lsb, true, false).into(),
+            (len & 0xFF) as u8,
+            ((len >> 8) & 0xFF) as u8,
+        ]);
         self.cmd.extend_from_slice(data);
         self
     }
@@ -760,31 +464,37 @@ impl MpsseCmdBuilder {
     /// * `mode` - Data clocking mode.
     /// * `len` - Number of bytes to clock in.
     ///   This will panic for values greater than `u16::MAX + 1`.
-    pub fn clock_bytes_in(&mut self, mode: ClockBytesIn, mut len: usize) -> &mut Self {
+    pub fn clock_bytes_in(&mut self, tck_init_value: bool, lsb: bool, mut len: usize) -> &mut Self {
         if len == 0 {
             return self;
         }
-        assert!(len <= 65536, "data length should be in 1..=u16::MAX+1");
+        assert!(len <= 65536, "data length should be in 1..=65536");
         self.read_len += len;
         len -= 1;
-        self.cmd
-            .extend_from_slice(&[mode as u8, (len & 0xFF) as u8, ((len >> 8) & 0xFF) as u8]);
+        self.cmd.extend_from_slice(&[
+            MpsseShiftCmd::shift(tck_init_value, false, lsb, false, true).into(),
+            (len & 0xFF) as u8,
+            ((len >> 8) & 0xFF) as u8,
+        ]);
         self
     }
 
     /// Clock data in and out simultaneously.
     ///
     /// This will panic for data lengths greater than `u16::MAX + 1`.
-    pub fn clock_bytes(&mut self, mode: ClockBytes, data: &[u8]) -> &mut Self {
+    pub fn clock_bytes(&mut self, tck_init_value: bool, lsb: bool, data: &[u8]) -> &mut Self {
         let mut len = data.len();
         if len == 0 {
             return self;
         }
-        assert!(len <= 65536, "data length should be in 1..=u16::MAX+1");
+        assert!(len <= 65536, "data length should be in 1..=65536");
         self.read_len += len;
         len -= 1;
-        self.cmd
-            .extend_from_slice(&[mode as u8, (len & 0xFF) as u8, ((len >> 8) & 0xFF) as u8]);
+        self.cmd.extend_from_slice(&[
+            MpsseShiftCmd::shift(tck_init_value, false, lsb, true, true).into(),
+            (len & 0xFF) as u8,
+            ((len >> 8) & 0xFF) as u8,
+        ]);
         self.cmd.extend_from_slice(data);
         self
     }
@@ -797,13 +507,22 @@ impl MpsseCmdBuilder {
     /// * `data` - Data bits.
     /// * `len` - Number of bits to clock out.
     ///   This will panic for values greater than 8.
-    pub fn clock_bits_out(&mut self, mode: ClockBitsOut, data: u8, len: usize) -> &mut Self {
+    pub fn clock_bits_out(
+        &mut self,
+        tck_init_value: bool,
+        lsb: bool,
+        data: u8,
+        len: usize,
+    ) -> &mut Self {
         if len == 0 {
             return self;
         }
         assert!(len <= 8, "data length should be in 1..=8");
-        self.cmd
-            .extend_from_slice(&[mode as u8, (len - 1) as u8, data]);
+        self.cmd.extend_from_slice(&[
+            MpsseShiftCmd::shift(tck_init_value, true, lsb, true, false).into(),
+            (len - 1) as u8,
+            data,
+        ]);
         self
     }
 
@@ -814,13 +533,16 @@ impl MpsseCmdBuilder {
     /// * `mode` - Bit clocking mode.
     /// * `len` - Number of bits to clock in.
     ///   This will panic for values greater than 8.
-    pub fn clock_bits_in(&mut self, mode: ClockBitsIn, len: usize) -> &mut Self {
+    pub fn clock_bits_in(&mut self, tck_init_value: bool, lsb: bool, len: usize) -> &mut Self {
         if len == 0 {
             return self;
         }
         assert!(len <= 8, "data length should be in 1..=8");
         self.read_len += 1;
-        self.cmd.extend_from_slice(&[mode as u8, (len - 1) as u8]);
+        self.cmd.extend_from_slice(&[
+            MpsseShiftCmd::shift(tck_init_value, true, lsb, false, true).into(),
+            (len - 1) as u8,
+        ]);
         self
     }
 
@@ -831,14 +553,23 @@ impl MpsseCmdBuilder {
     /// * `mode` - Bit clocking mode.
     /// * `len` - Number of bits to clock in.
     ///   This will panic for values greater than 8.
-    pub fn clock_bits(&mut self, mode: ClockBits, data: u8, len: usize) -> &mut Self {
+    pub fn clock_bits(
+        &mut self,
+        tck_init_value: bool,
+        lsb: bool,
+        data: u8,
+        len: usize,
+    ) -> &mut Self {
         if len == 0 {
             return self;
         }
         assert!(len <= 8, "data length should be in 1..=8");
         self.read_len += 1;
-        self.cmd
-            .extend_from_slice(&[mode as u8, (len - 1) as u8, data]);
+        self.cmd.extend_from_slice(&[
+            MpsseShiftCmd::shift(tck_init_value, true, lsb, true, true).into(),
+            (len - 1) as u8,
+            data,
+        ]);
         self
     }
 
@@ -853,8 +584,9 @@ impl MpsseCmdBuilder {
     ///   This will panic for values greater than 7.
     pub fn clock_tms_out(
         &mut self,
-        mode: ClockTMSOut,
-        mut data: u8,
+        tck_init_value: bool,
+        tdo_neg_read: bool,
+        data: u8,
         tdi: bool,
         len: usize,
     ) -> &mut Self {
@@ -862,11 +594,12 @@ impl MpsseCmdBuilder {
             return self;
         }
         assert!(len <= 7, "data length should be in 1..=7");
-        if tdi {
-            data |= 0x80;
-        }
-        self.cmd
-            .extend_from_slice(&[mode as u8, (len - 1) as u8, data]);
+        let data = if tdi { data | 0x80 } else { data };
+        self.cmd.extend_from_slice(&[
+            MpsseShiftCmd::tms_shift(tck_init_value, tdo_neg_read, false).into(),
+            (len - 1) as u8,
+            data,
+        ]);
         self
     }
 
@@ -879,17 +612,25 @@ impl MpsseCmdBuilder {
     /// * `tdi` - Value to place on TDI while clocking.
     /// * `len` - Number of bits to clock out.
     ///   This will panic for values greater than 7.
-    pub fn clock_tms(&mut self, mode: ClockTMS, mut data: u8, tdi: bool, len: usize) -> &mut Self {
+    pub fn clock_tms(
+        &mut self,
+        tck_init_value: bool,
+        tdo_neg_read: bool,
+        data: u8,
+        tdi: bool,
+        len: usize,
+    ) -> &mut Self {
         if len == 0 {
             return self;
         }
         assert!(len <= 7, "data length should be in 1..=7");
         self.read_len += 1;
-        if tdi {
-            data |= 0x80;
-        }
-        self.cmd
-            .extend_from_slice(&[mode as u8, (len - 1) as u8, data]);
+        let data = if tdi { data | 0x80 } else { data };
+        self.cmd.extend_from_slice(&[
+            MpsseShiftCmd::tms_shift(tck_init_value, tdo_neg_read, false).into(),
+            (len - 1) as u8,
+            data,
+        ]);
         self
     }
 }

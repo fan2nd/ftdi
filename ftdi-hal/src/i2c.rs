@@ -1,5 +1,5 @@
 use crate::ftdaye::FtdiError;
-use crate::mpsse_cmd::{ClockBitsIn, ClockBitsOut, MpsseCmdBuilder};
+use crate::mpsse_cmd::MpsseCmdBuilder;
 use crate::{FtdiMpsse, Pin, PinUse};
 use eh1::i2c::{ErrorKind, NoAcknowledgeSource, Operation, SevenBitAddress};
 use std::sync::{Arc, Mutex};
@@ -9,8 +9,8 @@ const SCL: u8 = 1 << 0;
 /// SDA bitmask
 const SDA: u8 = 1 << 1;
 
-const BITS_IN: ClockBitsIn = ClockBitsIn::Tck0Msb;
-const BITS_OUT: ClockBitsOut = ClockBitsOut::Tck0Msb;
+const TCK_INIT_VALUE: bool = false;
+const IS_LSB: bool = false;
 
 /// FTDI I2C interface.
 pub struct I2c {
@@ -154,10 +154,10 @@ impl I2c {
                         mpsse_cmd
                             // SAD + R
                             .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
-                            .clock_bits_out(BITS_OUT, (address << 1) | 1, 8)
+                            .clock_bits_out(TCK_INIT_VALUE, IS_LSB, (address << 1) | 1, 8)
                             // SAK
                             .set_gpio_lower(lock.lower.value, SCL | lock.lower.direction)
-                            .clock_bits_in(BITS_IN, 1);
+                            .clock_bits_in(TCK_INIT_VALUE, IS_LSB, 1);
 
                         let mut ack_buf: [u8; 1] = [0; 1];
                         lock.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
@@ -170,17 +170,17 @@ impl I2c {
                     for idx in 0..buffer.len() {
                         mpsse_cmd
                             .set_gpio_lower(lock.lower.value, SCL | lock.lower.direction)
-                            .clock_bits_in(BITS_IN, 8);
+                            .clock_bits_in(TCK_INIT_VALUE, IS_LSB, 8);
                         if idx == buffer.len() - 1 {
                             // NMAK
                             mpsse_cmd
                                 .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
-                                .clock_bits_out(BITS_OUT, 0x80, 1);
+                                .clock_bits_out(TCK_INIT_VALUE, IS_LSB, 0x80, 1);
                         } else {
                             // MAK
                             mpsse_cmd
                                 .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
-                                .clock_bits_out(BITS_OUT, 0x00, 1);
+                                .clock_bits_out(TCK_INIT_VALUE, IS_LSB, 0x00, 1);
                         }
                     }
                     lock.write_read(mpsse_cmd.as_slice(), &mut [])?;
@@ -215,10 +215,10 @@ impl I2c {
                         mpsse_cmd
                             // SAD + W
                             .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
-                            .clock_bits_out(BITS_OUT, address << 1, 8)
+                            .clock_bits_out(TCK_INIT_VALUE, IS_LSB, address << 1, 8)
                             // SAK
                             .set_gpio_lower(lock.lower.value, SCL | lock.lower.direction)
-                            .clock_bits_in(BITS_IN, 1);
+                            .clock_bits_in(TCK_INIT_VALUE, IS_LSB, 1);
 
                         let mut ack_buf: [u8; 1] = [0; 1];
                         lock.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
@@ -232,10 +232,10 @@ impl I2c {
                         mpsse_cmd
                             // Oi
                             .set_gpio_lower(lock.lower.value, SCL | SDA | lock.lower.direction)
-                            .clock_bits_out(BITS_OUT, *byte, 8)
+                            .clock_bits_out(TCK_INIT_VALUE, IS_LSB, *byte, 8)
                             // SAK
                             .set_gpio_lower(lock.lower.value, SCL | lock.lower.direction)
-                            .clock_bits_in(BITS_IN, 1);
+                            .clock_bits_in(TCK_INIT_VALUE, IS_LSB, 1);
 
                         let mut ack_buf: [u8; 1] = [0; 1];
                         lock.write_read(mpsse_cmd.as_slice(), &mut ack_buf)?;
