@@ -52,9 +52,9 @@ impl OutputPin {
             }
             Pin::Upper(idx) => {
                 if state {
-                    lock.lower.value |= 1 << idx;
+                    lock.upper.value |= 1 << idx;
                 } else {
-                    lock.lower.value &= !(1 << idx);
+                    lock.upper.value &= !(1 << idx);
                 }
                 cmd.set_gpio_upper(lock.upper.value, lock.upper.direction);
             }
