@@ -45,7 +45,9 @@ enum MpsseCmd {
     // This command is only available to FT232
     _EnableDriveOnlyZero = 0x9E,
 }
-/// Modes for data shift of the FTDI device.
+/// Command for data shift of the FTDI device.
+///
+/// All the command it constructed are vaild. According to two following test function.
 ///
 /// When tms_write is false:
 ///
@@ -99,9 +101,8 @@ impl MpsseShiftCmd {
             .with_tms_write(true)
     }
 }
-#[cfg(test)]
 #[test]
-fn test() {
+fn mpsse_shift_cmd_write_box_test() {
     // AN108 3.3
     assert_eq!(
         0x10 as u8,
@@ -240,6 +241,55 @@ fn test() {
         0x6f as u8,
         MpsseShiftCmd::tms_shift(false, true, true).into()
     );
+}
+#[test]
+fn mpsse_shift_cmd_black_box_test() {
+    use std::panic;
+    let mut cmd_set = Vec::new();
+    let permutations: Vec<_> = (0..32)
+        .map(|i| {
+            [
+                i & (1 << 0) != 0, // 最低位 -> 索引0
+                i & (1 << 1) != 0,
+                i & (1 << 2) != 0,
+                i & (1 << 3) != 0,
+                i & (1 << 4) != 0, // 最高位 -> 索引4
+            ]
+        })
+        .collect();
+    for permutation in permutations.iter() {
+        let result: Result<u8, _> = panic::catch_unwind(|| {
+            MpsseShiftCmd::shift(
+                permutation[0],
+                permutation[1],
+                permutation[2],
+                permutation[3],
+                permutation[4],
+            )
+            .into()
+        });
+        if let Ok(x) = result {
+            cmd_set.push(x);
+        }
+    }
+    for permutation in permutations[0..8].iter() {
+        let result: Result<u8, _> = panic::catch_unwind(|| {
+            MpsseShiftCmd::tms_shift(permutation[0], permutation[1], permutation[2]).into()
+        });
+        if let Ok(x) = result {
+            cmd_set.push(x);
+        }
+    }
+    cmd_set.sort();
+    cmd_set.dedup();
+    assert_eq!(
+        cmd_set,
+        [
+            0x10, 0x11, 0x12, 0x13, 0x18, 0x19, 0x1a, 0x1b, 0x20, 0x22, 0x24, 0x26, 0x28, 0x2a,
+            0x2c, 0x2e, 0x31, 0x33, 0x34, 0x36, 0x39, 0x3b, 0x3c, 0x3e, 0x4a, 0x4b, 0x6a, 0x6b,
+            0x6e, 0x6f
+        ]
+    )
 }
 
 /// FTDI Multi-Protocol Synchronous Serial Engine (MPSSE) command builder.

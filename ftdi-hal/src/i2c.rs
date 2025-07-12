@@ -76,21 +76,6 @@ impl I2c {
     /// commands.  This sets the number of MPSSE command generated for each
     /// stop and start condition.  An increase in the number of MPSSE commands
     /// roughtly correlates to an increase in the duration.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use ftdi_embedded_hal as hal;
-    ///
-    /// # #[cfg(feature = "libftd2xx")]
-    /// # {
-    /// let device = libftd2xx::Ft2232h::with_description("Dual RS232-HS A")?;
-    /// let hal = hal::FtHal::init_freq(device, 3_000_000)?;
-    /// let mut i2c = hal.i2c()?;
-    /// i2c.set_stop_start_len(10);
-    /// # }
-    /// # Ok::<(), std::boxed::Box<dyn std::error::Error>>(())
-    /// ```
     pub fn set_stop_start_len(&mut self, start_stop_cmds: usize) {
         self.start_stop_cmds = start_stop_cmds
     }

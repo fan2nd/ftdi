@@ -26,7 +26,7 @@ impl JtagDetectTdo {
         for i in 0..8 {
             if i == tck || i == tms {
                 lock.alloc_pin(Pin::Lower(i), PinUse::Output);
-            }else{
+            } else {
                 lock.alloc_pin(Pin::Lower(i), PinUse::Input);
             }
         }
